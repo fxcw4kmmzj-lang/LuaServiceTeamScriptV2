@@ -1,21 +1,18 @@
---// LOAD RAYFIELD
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
---// SERVICES
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
 
 local LocalPlayer = Players.LocalPlayer
 
---// OWNER
 local OWNER = "sotirisgk89"
-local IsOwner = LocalPlayer.Name == OWNER
 
---// STATES
 local CurrentSpeed = 16
 local CurrentJump = 65
+local CurrentFOV = 70
 
 local Noclip = false
 local AutoInteract = false
@@ -23,40 +20,34 @@ local AutoHit = false
 local AutoAbility = false
 local AbilityCooldown = false
 local ESPEnabled = false
+local InfiniteJump = false
 
---// GUI
 local Window = Rayfield:CreateWindow({
-	Name = "LuaServiceTeam PvP",
-	LoadingTitle = "Loading...",
-	LoadingSubtitle = IsOwner and "Owner Mode" or "Player Mode",
+	Name = "LuaServiceTeam",
+	LoadingTitle = "LuaServiceTeam",
+	LoadingSubtitle = LocalPlayer.Name == OWNER and "Owner Mode" or "Player Mode",
 	KeySystem = false
 })
 
--- Notifications
 Rayfield:Notify({
 	Title = "LuaServiceTeam",
 	Content = "You launched successfully",
-	Duration = 5
+	Duration = 4
 })
 
 Rayfield:Notify({
 	Title = "LuaServiceTeam",
 	Content = "Join our Discord link on Main tab",
-	Duration = 5
+	Duration = 4
 })
 
--- Tabs
 local MainTab = Window:CreateTab("Main",4483362458)
 local CombatTab = Window:CreateTab("Combat",4483362458)
 local VisualTab = Window:CreateTab("Visual",4483362458)
 
--- Main info
-MainTab:CreateLabel("Discord: your-discord-link")
+MainTab:CreateLabel("Discord: discord.gg/XZafM7ESN")
 
---===================================
--- SPEED FIX
---===================================
-
+-- SPEED
 MainTab:CreateSlider({
 	Name = "Speed",
 	Range = {16,100},
@@ -67,10 +58,7 @@ MainTab:CreateSlider({
 	end
 })
 
---===================================
--- JUMP FIX
---===================================
-
+-- JUMP
 MainTab:CreateButton({
 	Name = "1.3x Jump",
 	Callback = function()
@@ -78,16 +66,50 @@ MainTab:CreateButton({
 	end
 })
 
+-- FOV
+MainTab:CreateSlider({
+	Name = "FOV",
+	Range = {70,120},
+	Increment = 1,
+	CurrentValue = 70,
+	Callback = function(v)
+		CurrentFOV = v
+	end
+})
+
+-- INFINITE JUMP
+MainTab:CreateToggle({
+	Name = "Infinite Jump",
+	CurrentValue = false,
+	Callback = function(v)
+		InfiniteJump = v
+	end
+})
+
+UIS.JumpRequest:Connect(function()
+
+	if InfiniteJump
+	and LocalPlayer.Character then
+
+		LocalPlayer.Character
+		.Humanoid
+		:ChangeState("Jumping")
+
+	end
+
+end)
+
+-- APPLY MOVEMENT
 task.spawn(function()
 
 	while true do
 
-		if LocalPlayer.Character then
+		local char = LocalPlayer.Character
+
+		if char then
 
 			local hum =
-			LocalPlayer.Character:FindFirstChild(
-				"Humanoid"
-			)
+			char:FindFirstChild("Humanoid")
 
 			if hum then
 
@@ -98,16 +120,16 @@ task.spawn(function()
 
 		end
 
-		task.wait(0.2)
+		workspace.CurrentCamera.FieldOfView =
+		CurrentFOV
+
+		task.wait()
 
 	end
 
 end)
 
---===================================
 -- INVISIBLE
---===================================
-
 MainTab:CreateToggle({
 	Name = "Invisible",
 	CurrentValue = false,
@@ -131,10 +153,7 @@ MainTab:CreateToggle({
 	end
 })
 
---===================================
 -- NOCLIP
---===================================
-
 MainTab:CreateToggle({
 	Name = "Noclip",
 	CurrentValue = false,
@@ -161,10 +180,7 @@ RunService.Stepped:Connect(function()
 
 end)
 
---===================================
--- AUTO INTERACT
---===================================
-
+-- AUTO INTERACT FOR UI BUTTONS
 MainTab:CreateToggle({
 	Name = "Auto Interact",
 	CurrentValue = false,
@@ -177,44 +193,27 @@ task.spawn(function()
 
 	while true do
 
-		if AutoInteract
-		and LocalPlayer.Character then
+		if AutoInteract then
 
-			local hrp =
-			LocalPlayer.Character:FindFirstChild(
-				"HumanoidRootPart"
+			local gui =
+			LocalPlayer:FindFirstChild(
+				"PlayerGui"
 			)
 
-			if hrp then
+			if gui then
 
-				for _, prompt in pairs(
-					workspace:GetDescendants()
+				for _, obj in pairs(
+					gui:GetDescendants()
 				) do
 
-					if prompt:IsA(
-						"ProximityPrompt"
-					) then
+					if obj:IsA("TextButton")
+					or obj:IsA("ImageButton") then
 
-						local parent =
-						prompt.Parent
+						if obj.Visible then
 
-						if parent
-						and parent:IsA(
-							"BasePart"
-						) then
-
-							local distance =
-							(
-								hrp.Position -
-								parent.Position
-							).Magnitude
-
-							if distance <= 4 then
-
-								prompt.HoldDuration = 0
-								fireproximityprompt(prompt)
-
-							end
+							pcall(function()
+								obj:Activate()
+							end)
 
 						end
 
@@ -226,15 +225,28 @@ task.spawn(function()
 
 		end
 
-		task.wait(0.2)
+		task.wait(0.5)
 
 	end
 
 end)
 
---===================================
--- ENEMY DETECTION
---===================================
+-- COMBAT
+CombatTab:CreateToggle({
+	Name = "Auto Slot 1 Hit",
+	CurrentValue = false,
+	Callback = function(v)
+		AutoHit = v
+	end
+})
+
+CombatTab:CreateToggle({
+	Name = "Auto Slot 2 Ability",
+	CurrentValue = false,
+	Callback = function(v)
+		AutoAbility = v
+	end
+})
 
 local function EnemyNearby()
 
@@ -256,13 +268,10 @@ local function EnemyNearby()
 			"HumanoidRootPart"
 		) then
 
-			local enemyRoot =
-			plr.Character.HumanoidRootPart
-
 			local dist =
 			(
 				myRoot.Position -
-				enemyRoot.Position
+				plr.Character.HumanoidRootPart.Position
 			).Magnitude
 
 			if dist <= 3 then
@@ -276,30 +285,6 @@ local function EnemyNearby()
 	return false
 
 end
-
---===================================
--- AUTO HIT
---===================================
-
-CombatTab:CreateToggle({
-	Name = "Auto Slot 1 Hit",
-	CurrentValue = false,
-	Callback = function(v)
-		AutoHit = v
-	end
-})
-
---===================================
--- AUTO ABILITY
---===================================
-
-CombatTab:CreateToggle({
-	Name = "Auto Slot 2 Ability",
-	CurrentValue = false,
-	Callback = function(v)
-		AutoAbility = v
-	end
-})
 
 task.spawn(function()
 
@@ -342,10 +327,7 @@ task.spawn(function()
 
 end)
 
---===================================
--- FULLBRIGHT
---===================================
-
+-- VISUALS
 VisualTab:CreateToggle({
 	Name = "FullBright",
 	CurrentValue = false,
@@ -366,10 +348,6 @@ VisualTab:CreateToggle({
 	end
 })
 
---===================================
--- LOW GRAPHICS
---===================================
-
 VisualTab:CreateButton({
 	Name = "Low Graphics",
 	Callback = function()
@@ -387,52 +365,69 @@ VisualTab:CreateButton({
 
 		end
 
-		Lighting.GlobalShadows = false
-
 	end
 })
 
---===================================
--- ESP
---===================================
-
-local function AddESP(plr)
-
-	if plr == LocalPlayer then return end
-
-	plr.CharacterAdded:Connect(function(char)
-
-		if not ESPEnabled then return end
-
-		local h =
-		Instance.new("Highlight")
-
-		h.Parent = char
-
-	end)
-
-end
-
-for _, plr in pairs(
-	Players:GetPlayers()
-) do
-	AddESP(plr)
-end
-
-Players.PlayerAdded:Connect(AddESP)
-
 VisualTab:CreateToggle({
-	Name = "Player ESP",
+	Name = "ESP + Tracers",
 	CurrentValue = false,
 	Callback = function(v)
 		ESPEnabled = v
 	end
 })
 
---===================================
--- TOGGLE UI
---===================================
+local function SetupESP(plr)
 
+	if plr == LocalPlayer then return end
+
+	local function Apply(char)
+
+		if not ESPEnabled then return end
+
+		local h =
+		Instance.new("Highlight")
+
+		h.DepthMode =
+		Enum.HighlightDepthMode.AlwaysOnTop
+
+		h.Parent = char
+
+	end
+
+	if plr.Character then
+		Apply(plr.Character)
+	end
+
+	plr.CharacterAdded:Connect(Apply)
+
+end
+
+for _, plr in pairs(
+	Players:GetPlayers()
+) do
+	SetupESP(plr)
+end
+
+Players.PlayerAdded:Connect(SetupESP)
+
+-- ANTI AFK
+LocalPlayer.Idled:Connect(function()
+
+	VirtualUser:Button2Down(
+		Vector2.new(0,0),
+		workspace.CurrentCamera.CFrame
+	)
+
+	task.wait(1)
+
+	VirtualUser:Button2Up(
+		Vector2.new(0,0),
+		workspace.CurrentCamera.CFrame
+	)
+
+end)
+
+-- TOGGLE UI
 UIS.InputBegan:Connect(function(input)
 
 	if input.KeyCode ==
