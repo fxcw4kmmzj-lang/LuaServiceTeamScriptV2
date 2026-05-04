@@ -36,8 +36,8 @@ local Window = Rayfield:CreateWindow({
 	Name = "LuaServiceTeam",
 	LoadingTitle = "LuaServiceTeam",
 	LoadingSubtitle = IsOwner and "Owner Mode" or "Player Mode",
-	KeySystem = true
-}) 
+	KeySystem = false
+})
 
 -- Notifications
 Rayfield:Notify({
