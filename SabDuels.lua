@@ -1,5 +1,7 @@
+--// LOAD
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
+--// SERVICES
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local UIS = game:GetService("UserInputService")
@@ -8,27 +10,36 @@ local VirtualUser = game:GetService("VirtualUser")
 
 local LocalPlayer = Players.LocalPlayer
 
-local OWNER = "sotirisgk89"
+--// OWNER
+local OWNER_NAME = "sotirisgk89"
+local IsOwner = LocalPlayer.Name == OWNER_NAME
 
+--// STATES
 local CurrentSpeed = 16
 local CurrentJump = 65
 local CurrentFOV = 70
 
+local SavedPosition = nil
+
 local Noclip = false
+local InfiniteJump = false
 local AutoInteract = false
+local AutoE = false
 local AutoHit = false
 local AutoAbility = false
 local AbilityCooldown = false
 local ESPEnabled = false
-local InfiniteJump = false
+local SprintEnabled = false
 
+--// WINDOW
 local Window = Rayfield:CreateWindow({
 	Name = "LuaServiceTeam",
 	LoadingTitle = "LuaServiceTeam",
-	LoadingSubtitle = LocalPlayer.Name == OWNER and "Owner Mode" or "Player Mode",
+	LoadingSubtitle = IsOwner and "Owner Mode" or "Player Mode",
 	KeySystem = false
 })
 
+-- Notifications
 Rayfield:Notify({
 	Title = "LuaServiceTeam",
 	Content = "You launched successfully",
@@ -41,16 +52,21 @@ Rayfield:Notify({
 	Duration = 4
 })
 
+-- Tabs
 local MainTab = Window:CreateTab("Main",4483362458)
 local CombatTab = Window:CreateTab("Combat",4483362458)
 local VisualTab = Window:CreateTab("Visual",4483362458)
+local InfoTab = Window:CreateTab("Info",4483362458)
 
 MainTab:CreateLabel("Discord: discord.gg/XZafM7ESN")
 
--- SPEED
+--==================================
+-- MOVEMENT
+--==================================
+
 MainTab:CreateSlider({
 	Name = "Speed",
-	Range = {16,100},
+	Range = {16,80},
 	Increment = 1,
 	CurrentValue = 16,
 	Callback = function(v)
@@ -58,7 +74,6 @@ MainTab:CreateSlider({
 	end
 })
 
--- JUMP
 MainTab:CreateButton({
 	Name = "1.3x Jump",
 	Callback = function()
@@ -66,7 +81,6 @@ MainTab:CreateButton({
 	end
 })
 
--- FOV
 MainTab:CreateSlider({
 	Name = "FOV",
 	Range = {70,120},
@@ -77,12 +91,19 @@ MainTab:CreateSlider({
 	end
 })
 
--- INFINITE JUMP
 MainTab:CreateToggle({
 	Name = "Infinite Jump",
 	CurrentValue = false,
 	Callback = function(v)
 		InfiniteJump = v
+	end
+})
+
+MainTab:CreateToggle({
+	Name = "Auto Sprint",
+	CurrentValue = false,
+	Callback = function(v)
+		SprintEnabled = v
 	end
 })
 
@@ -99,22 +120,51 @@ UIS.JumpRequest:Connect(function()
 
 end)
 
--- APPLY MOVEMENT
+UIS.InputBegan:Connect(function(input)
+
+	if SprintEnabled
+	and input.KeyCode ==
+	Enum.KeyCode.LeftShift then
+
+		CurrentSpeed = 40
+
+	end
+
+end)
+
+UIS.InputEnded:Connect(function(input)
+
+	if input.KeyCode ==
+	Enum.KeyCode.LeftShift then
+
+		CurrentSpeed = 16
+
+	end
+
+end)
+
+-- Apply movement forever + after death
 task.spawn(function()
 
 	while true do
 
-		local char = LocalPlayer.Character
+		local char =
+		LocalPlayer.Character
 
 		if char then
 
 			local hum =
-			char:FindFirstChild("Humanoid")
+			char:FindFirstChild(
+				"Humanoid"
+			)
 
 			if hum then
 
-				hum.WalkSpeed = CurrentSpeed
-				hum.JumpPower = CurrentJump
+				hum.WalkSpeed =
+				CurrentSpeed
+
+				hum.JumpPower =
+				CurrentJump
 
 			end
 
@@ -129,7 +179,10 @@ task.spawn(function()
 
 end)
 
+--==================================
 -- INVISIBLE
+--==================================
+
 MainTab:CreateToggle({
 	Name = "Invisible",
 	CurrentValue = false,
@@ -153,7 +206,10 @@ MainTab:CreateToggle({
 	end
 })
 
+--==================================
 -- NOCLIP
+--==================================
+
 MainTab:CreateToggle({
 	Name = "Noclip",
 	CurrentValue = false,
@@ -164,7 +220,8 @@ MainTab:CreateToggle({
 
 RunService.Stepped:Connect(function()
 
-	if Noclip and LocalPlayer.Character then
+	if Noclip
+	and LocalPlayer.Character then
 
 		for _, part in pairs(
 			LocalPlayer.Character:GetDescendants()
@@ -180,7 +237,10 @@ RunService.Stepped:Connect(function()
 
 end)
 
--- AUTO INTERACT FOR UI BUTTONS
+--==================================
+-- AUTO INTERACT + AUTO E
+--==================================
+
 MainTab:CreateToggle({
 	Name = "Auto Interact",
 	CurrentValue = false,
@@ -189,12 +249,21 @@ MainTab:CreateToggle({
 	end
 })
 
+MainTab:CreateToggle({
+	Name = "Auto E",
+	CurrentValue = false,
+	Callback = function(v)
+		AutoE = v
+	end
+})
+
 task.spawn(function()
 
 	while true do
 
-		if AutoInteract then
+		if AutoInteract or AutoE then
 
+			-- GUI buttons
 			local gui =
 			LocalPlayer:FindFirstChild(
 				"PlayerGui"
@@ -223,15 +292,69 @@ task.spawn(function()
 
 			end
 
+			-- Prompt objects
+			if LocalPlayer.Character then
+
+				local hrp =
+				LocalPlayer.Character
+				:FindFirstChild(
+					"HumanoidRootPart"
+				)
+
+				if hrp then
+
+					for _, prompt in pairs(
+						workspace:GetDescendants()
+					) do
+
+						if prompt:IsA(
+							"ProximityPrompt"
+						) then
+
+							local p =
+							prompt.Parent
+
+							if p
+							and p:IsA(
+								"BasePart"
+							) then
+
+								local dist =
+								(
+									hrp.Position -
+									p.Position
+								).Magnitude
+
+								if dist <= 4 then
+
+									fireproximityprompt(
+										prompt
+									)
+
+								end
+
+							end
+
+						end
+
+					end
+
+				end
+
+			end
+
 		end
 
-		task.wait(0.5)
+		task.wait(0.3)
 
 	end
 
 end)
 
+--==================================
 -- COMBAT
+--==================================
+
 CombatTab:CreateToggle({
 	Name = "Auto Slot 1 Hit",
 	CurrentValue = false,
@@ -251,8 +374,9 @@ CombatTab:CreateToggle({
 local function EnemyNearby()
 
 	local myRoot =
-	LocalPlayer.Character and
-	LocalPlayer.Character:FindFirstChild(
+	LocalPlayer.Character
+	and LocalPlayer.Character
+	:FindFirstChild(
 		"HumanoidRootPart"
 	)
 
@@ -264,14 +388,17 @@ local function EnemyNearby()
 
 		if plr ~= LocalPlayer
 		and plr.Character
-		and plr.Character:FindFirstChild(
+		and plr.Character
+		:FindFirstChild(
 			"HumanoidRootPart"
 		) then
 
 			local dist =
 			(
 				myRoot.Position -
-				plr.Character.HumanoidRootPart.Position
+				plr.Character
+				.HumanoidRootPart
+				.Position
 			).Magnitude
 
 			if dist <= 3 then
@@ -305,7 +432,8 @@ task.spawn(function()
 			if AutoAbility
 			and not AbilityCooldown then
 
-				AbilityCooldown = true
+				AbilityCooldown =
+				true
 
 				keypress(0x32)
 				task.wait(0.05)
@@ -313,9 +441,13 @@ task.spawn(function()
 
 				mouse1click()
 
-				task.delay(10,function()
-					AbilityCooldown = false
-				end)
+				task.delay(
+					10,
+					function()
+						AbilityCooldown =
+						false
+					end
+				)
 
 			end
 
@@ -327,7 +459,10 @@ task.spawn(function()
 
 end)
 
+--==================================
 -- VISUALS
+--==================================
+
 VisualTab:CreateToggle({
 	Name = "FullBright",
 	CurrentValue = false,
@@ -359,7 +494,8 @@ VisualTab:CreateButton({
 			if obj:IsA("BasePart") then
 
 				obj.Material =
-				Enum.Material.SmoothPlastic
+				Enum.Material
+				.SmoothPlastic
 
 			end
 
@@ -369,26 +505,29 @@ VisualTab:CreateButton({
 })
 
 VisualTab:CreateToggle({
-	Name = "ESP + Tracers",
+	Name = "ESP",
 	CurrentValue = false,
 	Callback = function(v)
 		ESPEnabled = v
 	end
 })
 
-local function SetupESP(plr)
+local function AddESP(plr)
 
-	if plr == LocalPlayer then return end
+	if plr == LocalPlayer then
+		return
+	end
 
 	local function Apply(char)
 
-		if not ESPEnabled then return end
+		if not ESPEnabled then
+			return
+		end
 
 		local h =
-		Instance.new("Highlight")
-
-		h.DepthMode =
-		Enum.HighlightDepthMode.AlwaysOnTop
+		Instance.new(
+			"Highlight"
+		)
 
 		h.Parent = char
 
@@ -398,19 +537,74 @@ local function SetupESP(plr)
 		Apply(plr.Character)
 	end
 
-	plr.CharacterAdded:Connect(Apply)
+	plr.CharacterAdded:Connect(
+		Apply
+	)
 
 end
 
-for _, plr in pairs(
+for _, p in pairs(
 	Players:GetPlayers()
 ) do
-	SetupESP(plr)
+	AddESP(p)
 end
 
-Players.PlayerAdded:Connect(SetupESP)
+Players.PlayerAdded:Connect(
+	AddESP
+)
 
--- ANTI AFK
+--==================================
+-- SAVE POS
+--==================================
+
+InfoTab:CreateButton({
+	Name = "Save Position",
+	Callback = function()
+
+		if LocalPlayer.Character then
+
+			SavedPosition =
+			LocalPlayer.Character
+			.HumanoidRootPart
+			.CFrame
+
+		end
+
+	end
+})
+
+InfoTab:CreateButton({
+	Name = "Teleport Back",
+	Callback = function()
+
+		if SavedPosition
+		and LocalPlayer.Character then
+
+			LocalPlayer.Character
+			.HumanoidRootPart
+			.CFrame =
+			SavedPosition
+
+		end
+
+	end
+})
+
+InfoTab:CreateButton({
+	Name = "Player Count",
+	Callback = function()
+
+		Rayfield:Notify({
+			Title = "Players",
+			Content =
+			#Players:GetPlayers(),
+			Duration = 3
+		})
+
+	end
+})
+
+-- Anti AFK
 LocalPlayer.Idled:Connect(function()
 
 	VirtualUser:Button2Down(
@@ -427,7 +621,7 @@ LocalPlayer.Idled:Connect(function()
 
 end)
 
--- TOGGLE UI
+-- Toggle UI
 UIS.InputBegan:Connect(function(input)
 
 	if input.KeyCode ==
