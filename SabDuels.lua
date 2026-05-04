@@ -1,5 +1,5 @@
 --// LINORIA
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/mstudio45/LinoriaLib/refs/heads/main/Example.lua"))()
+local loadstring(game:HttpGet("https://raw.githubusercontent.com/fxcw4kmmzj-lang/LuaServiceTeamScriptV2/main/SabDuels.lua"))()
 
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
