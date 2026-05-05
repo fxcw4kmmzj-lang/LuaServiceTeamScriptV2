@@ -1,5 +1,5 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-Rayfield:LoadConfiguration()
+
 local Window = Rayfield:CreateWindow({
    Name = "LuaServiceTeam",
    Icon = "star",
@@ -17,7 +17,7 @@ local Window = Rayfield:CreateWindow({
    },
    Discord = {
       Enabled = true,
-      Invite = "https://discord.gg/4z3jHQQTB",
+      Invite = "4z3jHQQTB",
       RememberJoins = true
    },
    KeySystem = false,
@@ -42,7 +42,7 @@ task.spawn(function()
                 local Logo = Instance.new("ImageLabel")
                 Logo.Name = "CustomLogo"
                 Logo.Parent = v
-                Logo.Image = "rbxassetid://77069254742459"
+                Logo.Image = "rbxassetid://4483362458"
                 Logo.Size = UDim2.new(0,35,0,35)
                 Logo.Position = UDim2.new(0,15,0,60)
                 Logo.BackgroundTransparency = 1
@@ -100,7 +100,7 @@ local autoERadius = 10
 _G.SavedScripts = _G.SavedScripts or {}
 
 -- MAIN TAB
-local MainTab = Window:CreateTab("Main", 77069254742459)
+local MainTab = Window:CreateTab("Main", 4483362458)
 
 local function SetSpeed(value)
     local character = player.Character or player.CharacterAdded:Wait()
