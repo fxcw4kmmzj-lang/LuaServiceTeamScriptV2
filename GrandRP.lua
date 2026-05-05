@@ -53,13 +53,20 @@ task.spawn(function()
     end)
 end)
 
--- GLOBALS
+-- SERVICES
 local player = game:GetService("Players").LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- ANTI-CHEAT BYPASS
+local bypassEnabled = false
+local oldNamecall
+local oldIndex
+local oldNewIndex
 
 -- ESP SETTINGS
 local espEnabled = false
@@ -69,7 +76,7 @@ local espDistance = true
 local espHealth = true
 local espTracers = false
 local espColor = Color3.fromRGB(255, 0, 0)
-local espConnections = {}
+local espObjects = {}
 local showUID = false
 
 -- AIMBOT SETTINGS
@@ -81,6 +88,7 @@ local aimSmoothness = 0.2
 local aimPrediction = true
 local teamCheck = true
 local whitelistedPlayers = {}
+local currentTarget = nil
 
 -- CYCLE SETTINGS
 local cycleActive = false
@@ -91,13 +99,18 @@ local launchPower = 300
 local launchHeight = 150
 local cycleFOVEnabled = false
 local cycleFOV = 120
+local cycleConnection = nil
+local launchConnection = nil
 
 -- FLY SETTINGS
 local flyEnabled = false
 local flySpeed = 50
+local flyConnection = nil
+local mobileSupport = true
 
 -- NOCLIP SETTINGS
 local noclipEnabled = false
+local noclipConnection = nil
 
 -- NOCLIP FLY SETTINGS
 local noclipFlyEnabled = false
@@ -110,12 +123,14 @@ local freecamSpeed = 1
 -- AUTO E SETTINGS
 local autoEEnabled = false
 local autoERadius = 10
+local autoEConnection = nil
 
 -- MAGNORE SETTINGS
 local magnoreEnabled = false
 local magnoreTargets = {}
 local magnoreSpeed = 50
 local magnorePower = 500
+local magnoreConnection = nil
 
 -- PERFORMANCE
 local fpsCounter = 0
@@ -132,6 +147,74 @@ local panicActivated = false
 
 -- SAVED SCRIPTS
 _G.SavedScripts = _G.SavedScripts or {}
+
+-- ANTI-CHEAT BYPASS FUNCTION
+local function enableBypass()
+    bypassEnabled = true
+    
+    -- Hook metamethods
+    local mt = getrawmetatable(game)
+    local oldmt = mt.__namecall
+    local oldidx = mt.__index
+    local oldnewidx = mt.__newindex
+    
+    setreadonly(mt, false)
+    
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+        
+        if bypassEnabled then
+            if method == "FireServer" or method == "InvokeServer" then
+                -- Block anti-cheat remote calls
+                if string.find(tostring(self), "Anti") or string.find(tostring(self), "Detect") or string.find(tostring(self), "Check") then
+                    return
+                end
+            elseif method == "Kick" then
+                return
+            end
+        end
+        
+        return oldmt(self, ...)
+    end)
+    
+    mt.__index = newcclosure(function(self, key)
+        if bypassEnabled then
+            if key == "WalkSpeed" or key == "JumpPower" or key == "Velocity" then
+                -- Return normal values to anticheat
+                if tostring(self):find("Humanoid") then
+                    if key == "WalkSpeed" then
+                        return 16
+                    elseif key == "JumpPower" then
+                        return 50
+                    end
+                end
+            end
+        end
+        
+        return oldidx(self, key)
+    end)
+    
+    mt.__newindex = newcclosure(function(self, key, value)
+        if bypassEnabled then
+            if key == "WalkSpeed" or key == "JumpPower" then
+                -- Allow changes but spoof to anticheat
+                return
+            end
+        end
+        
+        return oldnewidx(self, key, value)
+    end)
+    
+    setreadonly(mt, true)
+    
+    Rayfield:Notify({
+       Title = "Bypass Enabled",
+       Content = "Anti-cheat bypass activated",
+       Duration = 2,
+       Image = 4483362458,
+    })
+end
 
 -- FPS COUNTER
 spawn(function()
@@ -152,9 +235,10 @@ end)
 
 -- PING MONITOR
 spawn(function()
-    while true do
-        pingDisplay = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
-        wait(1)
+    while wait(1) do
+        pcall(function()
+            pingDisplay = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+        end)
     end
 end)
 
@@ -179,21 +263,20 @@ local function activatePanic()
     macroRecording = false
     macroPlaying = false
     
-    -- Clean up ESP
-    for _, connection in pairs(espConnections) do
-        connection:Disconnect()
-    end
-    espConnections = {}
+    -- Disconnect all connections
+    if cycleConnection then cycleConnection:Disconnect() end
+    if launchConnection then launchConnection:Disconnect() end
+    if flyConnection then flyConnection:Disconnect() end
+    if noclipConnection then noclipConnection:Disconnect() end
+    if autoEConnection then autoEConnection:Disconnect() end
+    if magnoreConnection then magnoreConnection:Disconnect() end
     
-    for _, plr in pairs(game.Players:GetPlayers()) do
-        if plr.Character then
-            for _, obj in pairs(plr.Character:GetDescendants()) do
-                if obj.Name == "ESP" or obj.Name == "UID" then
-                    obj:Destroy()
-                end
-            end
-        end
+    -- Clean up ESP
+    for _, espObj in pairs(espObjects) do
+        if espObj.gui then espObj.gui:Destroy() end
+        if espObj.connection then espObj.connection:Disconnect() end
     end
+    espObjects = {}
     
     -- Reset character
     local character = player.Character
@@ -271,7 +354,7 @@ MainTab:CreateButton({
 MainTab:CreateParagraph({Title = "FPS/Ping Monitor", Content = "Updates in real-time below"})
 
 spawn(function()
-    while true do
+    while wait(1) do
         pcall(function()
             for _, tab in pairs(Window.Tabs) do
                 if tab.Name == "Main" then
@@ -286,14 +369,18 @@ spawn(function()
                 end
             end
         end)
-        wait(1)
     end
 end)
 
 -- IMPROVED CYCLE FUNCTIONS
 local function startCycle()
-    local character = player.Character or player.CharacterAdded:Wait()
-    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    if cycleConnection then cycleConnection:Disconnect() end
+    if launchConnection then launchConnection:Disconnect() end
+    
+    local character = player.Character
+    if not character then return end
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
     
     cycleActive = true
     
@@ -302,37 +389,54 @@ local function startCycle()
         Workspace.CurrentCamera.FieldOfView = cycleFOV
     end
     
-    spawn(function()
-        while cycleActive do
-            humanoidRootPart.CFrame = humanoidRootPart.CFrame * CFrame.Angles(0, math.rad(cycleSpeed), 0)
-            wait(0.005)
+    -- Spinning
+    cycleConnection = RunService.Heartbeat:Connect(function()
+        if not cycleActive then
+            if cycleConnection then cycleConnection:Disconnect() end
+            if cycleFOVEnabled then
+                Workspace.CurrentCamera.FieldOfView = 70
+            end
+            return
         end
         
-        if cycleFOVEnabled then
-            Workspace.CurrentCamera.FieldOfView = 70
+        local character = player.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            character.HumanoidRootPart.CFrame = character.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(cycleSpeed), 0)
         end
     end)
     
-    spawn(function()
-        while launchActive do
-            local myPosition = humanoidRootPart.Position
-            
-            for _, otherPlayer in pairs(game.Players:GetPlayers()) do
-                if otherPlayer ~= player and otherPlayer.Character then
-                    local otherHRP = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    if otherHRP then
-                        local distance = (myPosition - otherHRP.Position).Magnitude
+    -- Launching
+    launchConnection = RunService.Heartbeat:Connect(function()
+        if not launchActive then
+            if launchConnection then launchConnection:Disconnect() end
+            return
+        end
+        
+        local character = player.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+        
+        local myPosition = character.HumanoidRootPart.Position
+        
+        for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+            if otherPlayer ~= player and otherPlayer.Character then
+                local otherHRP = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if otherHRP then
+                    local distance = (myPosition - otherHRP.Position).Magnitude
+                    
+                    if distance < 15 then
+                        local direction = (otherHRP.Position - myPosition).Unit
+                        local launchVector = direction * launchPower + Vector3.new(0, launchHeight, 0)
                         
-                        if distance < 15 then
-                            local direction = (otherHRP.Position - myPosition).Unit
-                            otherHRP.Velocity = direction * launchPower + Vector3.new(0, launchHeight, 0)
-                            otherHRP.AssemblyLinearVelocity = direction * launchPower + Vector3.new(0, launchHeight, 0)
-                        end
+                        -- Multiple methods for maximum compatibility
+                        otherHRP.Velocity = launchVector
+                        otherHRP.AssemblyLinearVelocity = launchVector
+                        
+                        pcall(function()
+                            otherHRP.CFrame = otherHRP.CFrame + Vector3.new(0, 2, 0)
+                        end)
                     end
                 end
             end
-            
-            wait(0.05)
         end
     end)
 end
@@ -340,6 +444,17 @@ end
 local function stopCycle()
     cycleActive = false
     launchActive = false
+    
+    if cycleConnection then
+        cycleConnection:Disconnect()
+        cycleConnection = nil
+    end
+    
+    if launchConnection then
+        launchConnection:Disconnect()
+        launchConnection = nil
+    end
+    
     if cycleFOVEnabled then
         Workspace.CurrentCamera.FieldOfView = 70
     end
@@ -394,6 +509,16 @@ MainTab:CreateSlider({
    end,
 })
 
+MainTab:CreateSlider({
+   Name = "Launch Height",
+   Range = {50, 500},
+   Increment = 25,
+   CurrentValue = 150,
+   Callback = function(Value)
+      launchHeight = Value
+   end,
+})
+
 MainTab:CreateToggle({
    Name = "Cycle FOV",
    CurrentValue = false,
@@ -412,16 +537,23 @@ MainTab:CreateSlider({
    end,
 })
 
--- FLY
+-- FLY WITH MOBILE SUPPORT
 MainTab:CreateToggle({
-   Name = "Fly",
+   Name = "Fly (Mobile Support)",
    CurrentValue = false,
    Flag = "FlyToggle",
    Callback = function(Value)
         flyEnabled = Value
+        
+        if flyConnection then
+            flyConnection:Disconnect()
+            flyConnection = nil
+        end
+        
         local character = player.Character
         if not character then return end
         local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then return end
         
         if Value then
             local bodyVelocity = Instance.new("BodyVelocity")
@@ -430,28 +562,38 @@ MainTab:CreateToggle({
             bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
             bodyVelocity.Parent = humanoidRootPart
             
-            local connection
-            connection = RunService.Heartbeat:Connect(function()
+            local bodyGyro = Instance.new("BodyGyro")
+            bodyGyro.Name = "FlyGyro"
+            bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+            bodyGyro.P = 9e9
+            bodyGyro.Parent = humanoidRootPart
+            
+            flyConnection = RunService.Heartbeat:Connect(function()
                 if not flyEnabled then
-                    connection:Disconnect()
                     if humanoidRootPart:FindFirstChild("FlyVelocity") then
                         humanoidRootPart.FlyVelocity:Destroy()
+                    end
+                    if humanoidRootPart:FindFirstChild("FlyGyro") then
+                        humanoidRootPart.FlyGyro:Destroy()
                     end
                     return
                 end
                 
+                local camera = Workspace.CurrentCamera
                 local moveDirection = Vector3.new(0, 0, 0)
+                
+                -- PC Controls
                 if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                    moveDirection = moveDirection + Workspace.CurrentCamera.CFrame.LookVector
+                    moveDirection = moveDirection + camera.CFrame.LookVector
                 end
                 if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                    moveDirection = moveDirection - Workspace.CurrentCamera.CFrame.LookVector
+                    moveDirection = moveDirection - camera.CFrame.LookVector
                 end
                 if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                    moveDirection = moveDirection - Workspace.CurrentCamera.CFrame.RightVector
+                    moveDirection = moveDirection - camera.CFrame.RightVector
                 end
                 if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                    moveDirection = moveDirection + Workspace.CurrentCamera.CFrame.RightVector
+                    moveDirection = moveDirection + camera.CFrame.RightVector
                 end
                 if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
                     moveDirection = moveDirection + Vector3.new(0, 1, 0)
@@ -460,11 +602,24 @@ MainTab:CreateToggle({
                     moveDirection = moveDirection - Vector3.new(0, 1, 0)
                 end
                 
+                -- Mobile Controls (Thumbstick)
+                if mobileSupport then
+                    local humanoid = character:FindFirstChild("Humanoid")
+                    if humanoid and humanoid.MoveDirection.Magnitude > 0 then
+                        moveDirection = moveDirection + (camera.CFrame.LookVector * humanoid.MoveDirection.Z)
+                        moveDirection = moveDirection + (camera.CFrame.RightVector * humanoid.MoveDirection.X)
+                    end
+                end
+                
                 bodyVelocity.Velocity = moveDirection * flySpeed
+                bodyGyro.CFrame = camera.CFrame
             end)
         else
-            if humanoidRootPart and humanoidRootPart:FindFirstChild("FlyVelocity") then
+            if humanoidRootPart:FindFirstChild("FlyVelocity") then
                 humanoidRootPart.FlyVelocity:Destroy()
+            end
+            if humanoidRootPart:FindFirstChild("FlyGyro") then
+                humanoidRootPart.FlyGyro:Destroy()
             end
         end
    end,
@@ -488,13 +643,14 @@ MainTab:CreateToggle({
    Callback = function(Value)
         noclipEnabled = Value
         
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+        
         if Value then
-            local connection
-            connection = RunService.Stepped:Connect(function()
-                if not noclipEnabled then
-                    connection:Disconnect()
-                    return
-                end
+            noclipConnection = RunService.Stepped:Connect(function()
+                if not noclipEnabled then return end
                 
                 local character = player.Character
                 if character then
@@ -520,6 +676,7 @@ MainTab:CreateToggle({
         local character = player.Character
         if not character then return end
         local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then return end
         
         if Value then
             -- Make invisible
@@ -588,7 +745,7 @@ MainTab:CreateToggle({
                 bodyVelocity.Velocity = moveDirection * flySpeed
             end)
         else
-            if humanoidRootPart and humanoidRootPart:FindFirstChild("FlyVelocity") then
+            if humanoidRootPart:FindFirstChild("FlyVelocity") then
                 humanoidRootPart.FlyVelocity:Destroy()
             end
             
@@ -611,23 +768,29 @@ MainTab:CreateToggle({
    Callback = function(Value)
         autoEEnabled = Value
         
+        if autoEConnection then
+            autoEConnection:Disconnect()
+            autoEConnection = nil
+        end
+        
         if Value then
-            spawn(function()
-                while autoEEnabled do
-                    local character = player.Character
-                    if character and character:FindFirstChild("HumanoidRootPart") then
-                        local hrp = character.HumanoidRootPart
-                        
-                        for _, obj in pairs(Workspace:GetDescendants()) do
-                            if obj:IsA("ProximityPrompt") then
+            autoEConnection = RunService.Heartbeat:Connect(function()
+                if not autoEEnabled then return end
+                
+                local character = player.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local hrp = character.HumanoidRootPart
+                    
+                    for _, obj in pairs(Workspace:GetDescendants()) do
+                        if obj:IsA("ProximityPrompt") then
+                            pcall(function()
                                 local parent = obj.Parent
                                 if parent and (parent.Position - hrp.Position).Magnitude <= autoERadius then
                                     fireproximityprompt(obj)
                                 end
-                            end
+                            end)
                         end
                     end
-                    wait(0.3)
                 end
             end)
         end
@@ -644,19 +807,50 @@ MainTab:CreateSlider({
    end,
 })
 
--- ESP TAB
+-- ESP TAB WITH AUTO UPDATE
 local ESPTab = Window:CreateTab("ESP", 4483362458)
+
+local function updateESP(plr, espData)
+    if not espEnabled or not plr or not plr.Character then return end
+    
+    local character = plr.Character
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local myChar = player.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
+    
+    local distance = (myChar.HumanoidRootPart.Position - humanoidRootPart.Position).Magnitude
+    
+    if espData.gui and espData.gui:FindFirstChild("DistanceLabel") then
+        espData.gui.DistanceLabel.Text = math.floor(distance) .. " studs"
+        espData.gui.NameLabel.Visible = espNames
+        espData.gui.DistanceLabel.Visible = espDistance
+        if espData.gui:FindFirstChild("UIDLabel") then
+            espData.gui.UIDLabel.Visible = showUID
+        end
+    end
+end
 
 local function createESP(plr)
     if plr == player then return end
     
     local function addESP(character)
+        local head = character:WaitForChild("Head")
+        
+        -- Remove old ESP
+        for _, obj in pairs(head:GetChildren()) do
+            if obj.Name == "ESP" then
+                obj:Destroy()
+            end
+        end
+        
         local billboardGui = Instance.new("BillboardGui")
         billboardGui.Name = "ESP"
         billboardGui.AlwaysOnTop = true
         billboardGui.Size = UDim2.new(0, 100, 0, 100)
         billboardGui.StudsOffset = Vector3.new(0, 3, 0)
-        billboardGui.Parent = character:WaitForChild("Head")
+        billboardGui.Parent = head
         
         local nameLabel = Instance.new("TextLabel")
         nameLabel.Name = "NameLabel"
@@ -692,31 +886,35 @@ local function createESP(plr)
         uidLabel.Text = "UID: " .. tostring(plr.UserId)
         uidLabel.Parent = billboardGui
         
-        local connection = RunService.RenderStepped:Connect(function()
-            if not espEnabled or not character or not character:FindFirstChild("HumanoidRootPart") then
-                billboardGui:Destroy()
-                connection:Disconnect()
+        local espData = {
+            player = plr,
+            gui = billboardGui,
+            connection = nil
+        }
+        
+        espData.connection = RunService.RenderStepped:Connect(function()
+            if not espEnabled or not plr or not plr.Parent then
+                if espData.gui then espData.gui:Destroy() end
+                if espData.connection then espData.connection:Disconnect() end
+                espObjects[plr.UserId] = nil
                 return
             end
             
-            local myChar = player.Character
-            if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-                local distance = (myChar.HumanoidRootPart.Position - character.HumanoidRootPart.Position).Magnitude
-                distanceLabel.Text = math.floor(distance) .. " studs"
-            end
-            
-            nameLabel.Visible = espNames
-            distanceLabel.Visible = espDistance
-            uidLabel.Visible = showUID
+            updateESP(plr, espData)
         end)
         
-        table.insert(espConnections, connection)
+        espObjects[plr.UserId] = espData
     end
     
     if plr.Character then
         addESP(plr.Character)
     end
-    plr.CharacterAdded:Connect(addESP)
+    
+    plr.CharacterAdded:Connect(function(char)
+        if espEnabled then
+            addESP(char)
+        end
+    end)
 end
 
 ESPTab:CreateToggle({
@@ -737,20 +935,11 @@ ESPTab:CreateToggle({
                 end
             end)
         else
-            for _, connection in pairs(espConnections) do
-                connection:Disconnect()
+            for _, espData in pairs(espObjects) do
+                if espData.gui then espData.gui:Destroy() end
+                if espData.connection then espData.connection:Disconnect() end
             end
-            espConnections = {}
-            
-            for _, plr in pairs(game.Players:GetPlayers()) do
-                if plr.Character then
-                    for _, obj in pairs(plr.Character:GetDescendants()) do
-                        if obj.Name == "ESP" then
-                            obj:Destroy()
-                        end
-                    end
-                end
-            end
+            espObjects = {}
         end
    end,
 })
@@ -784,10 +973,17 @@ ESPTab:CreateColorPicker({
    Color = Color3.fromRGB(255, 0, 0),
    Callback = function(Value)
         espColor = Value
+        
+        -- Update all existing ESP colors
+        for _, espData in pairs(espObjects) do
+            if espData.gui and espData.gui:FindFirstChild("NameLabel") then
+                espData.gui.NameLabel.TextColor3 = Value
+            end
+        end
    end
 })
 
--- AIMBOT TAB
+-- IMPROVED AIMBOT TAB
 local AimbotTab = Window:CreateTab("Aimbot", 4483362458)
 
 local function isWhitelisted(plr)
@@ -800,10 +996,13 @@ local function isWhitelisted(plr)
 end
 
 local function predictPosition(targetPart)
-    if not aimPrediction then return targetPart.Position end
+    if not aimPrediction or not targetPart then return targetPart.Position end
     
     local velocity = targetPart.AssemblyLinearVelocity
-    local distance = (player.Character.HumanoidRootPart.Position - targetPart.Position).Magnitude
+    local myChar = player.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return targetPart.Position end
+    
+    local distance = (myChar.HumanoidRootPart.Position - targetPart.Position).Magnitude
     local timeToTarget = distance / 500
     
     return targetPart.Position + (velocity * timeToTarget)
@@ -825,13 +1024,17 @@ local function getClosestPlayer()
             
             local character = player.Character
             if character and character:FindFirstChild("HumanoidRootPart") then
-                local screenPoint = Workspace.CurrentCamera:WorldToScreenPoint(plr.Character[aimPart].Position)
-                local mouseLocation = UserInputService:GetMouseLocation()
-                local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mouseLocation).Magnitude
+                local targetPart = plr.Character[aimPart]
+                local screenPoint, onScreen = Workspace.CurrentCamera:WorldToScreenPoint(targetPart.Position)
                 
-                if distance < shortestDistance then
-                    closestPlayer = plr
-                    shortestDistance = distance
+                if onScreen then
+                    local mouseLocation = UserInputService:GetMouseLocation()
+                    local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mouseLocation).Magnitude
+                    
+                    if distance < shortestDistance then
+                        closestPlayer = plr
+                        shortestDistance = distance
+                    end
                 end
             end
         end
@@ -840,6 +1043,7 @@ local function getClosestPlayer()
     return closestPlayer
 end
 
+-- Fixed Aim Lock
 AimbotTab:CreateToggle({
    Name = "Aim Lock (Smooth)",
    CurrentValue = false,
@@ -848,18 +1052,25 @@ AimbotTab:CreateToggle({
         
         if Value then
             spawn(function()
-                while aimLockEnabled do
+                while aimLockEnabled and wait() do
                     local target = getClosestPlayer()
+                    
                     if target and target.Character and target.Character:FindFirstChild(aimPart) then
-                        local targetPos = predictPosition(target.Character[aimPart])
-                        local currentCFrame = Workspace.CurrentCamera.CFrame
+                        currentTarget = target
+                        local targetPart = target.Character[aimPart]
+                        local targetPos = predictPosition(targetPart)
+                        local camera = Workspace.CurrentCamera
+                        local currentCFrame = camera.CFrame
                         local targetCFrame = CFrame.new(currentCFrame.Position, targetPos)
                         
-                        Workspace.CurrentCamera.CFrame = currentCFrame:Lerp(targetCFrame, aimSmoothness)
+                        camera.CFrame = currentCFrame:Lerp(targetCFrame, aimSmoothness)
+                    else
+                        currentTarget = nil
                     end
-                    wait()
                 end
             end)
+        else
+            currentTarget = nil
         end
    end,
 })
@@ -872,17 +1083,20 @@ AimbotTab:CreateToggle({
         
         if Value then
             spawn(function()
-                while aimAssistEnabled do
+                while aimAssistEnabled and wait() do
                     if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
                         local target = getClosestPlayer()
+                        
                         if target and target.Character and target.Character:FindFirstChild(aimPart) then
-                            local targetPos = predictPosition(target.Character[aimPart])
-                            local currentCFrame = Workspace.CurrentCamera.CFrame
+                            local targetPart = target.Character[aimPart]
+                            local targetPos = predictPosition(targetPart)
+                            local camera = Workspace.CurrentCamera
+                            local currentCFrame = camera.CFrame
                             local targetCFrame = CFrame.new(currentCFrame.Position, targetPos)
-                            Workspace.CurrentCamera.CFrame = currentCFrame:Lerp(targetCFrame, aimSmoothness * 0.5)
+                            
+                            camera.CFrame = currentCFrame:Lerp(targetCFrame, aimSmoothness * 0.5)
                         end
                     end
-                    wait()
                 end
             end)
         end
@@ -964,33 +1178,51 @@ AimbotTab:CreateButton({
    end,
 })
 
--- MAGNORE TAB
+-- FIXED MAGNORE TAB
 local MagnoreTab = Window:CreateTab("Magnore", 4483362458)
 
 local function startMagnore()
+    if magnoreConnection then
+        magnoreConnection:Disconnect()
+    end
+    
     magnoreEnabled = true
     
-    spawn(function()
-        while magnoreEnabled do
-            for _, targetName in pairs(magnoreTargets) do
-                local targetPlayer = game.Players:FindFirstChild(targetName)
-                if targetPlayer and targetPlayer.Character then
-                    local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    if targetHRP then
-                        targetHRP.CFrame = targetHRP.CFrame * CFrame.Angles(0, math.rad(magnoreSpeed), 0)
-                        
-                        local randomDirection = Vector3.new(
-                            math.random(-1, 1),
-                            math.random(0, 1),
-                            math.random(-1, 1)
-                        ).Unit
-                        
-                        targetHRP.Velocity = randomDirection * magnorePower
-                        targetHRP.AssemblyLinearVelocity = randomDirection * magnorePower
-                    end
+    magnoreConnection = RunService.Heartbeat:Connect(function()
+        if not magnoreEnabled then
+            if magnoreConnection then
+                magnoreConnection:Disconnect()
+                magnoreConnection = nil
+            end
+            return
+        end
+        
+        for _, targetName in pairs(magnoreTargets) do
+            local targetPlayer = game.Players:FindFirstChild(targetName)
+            if targetPlayer and targetPlayer.Character then
+                local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if targetHRP then
+                    -- Spin them fast
+                    targetHRP.CFrame = targetHRP.CFrame * CFrame.Angles(0, math.rad(magnoreSpeed), 0)
+                    
+                    -- Launch them up and away
+                    local randomDirection = Vector3.new(
+                        math.random(-100, 100),
+                        math.random(50, 100),
+                        math.random(-100, 100)
+                    ).Unit
+                    
+                    local launchVector = randomDirection * magnorePower
+                    
+                    targetHRP.Velocity = launchVector
+                    targetHRP.AssemblyLinearVelocity = launchVector
+                    
+                    -- Extra force upward
+                    pcall(function()
+                        targetHRP.CFrame = targetHRP.CFrame + Vector3.new(0, 5, 0)
+                    end)
                 end
             end
-            wait(0.01)
         end
     end)
 end
@@ -1002,6 +1234,11 @@ MagnoreTab:CreateToggle({
         magnoreEnabled = Value
         if Value then
             startMagnore()
+        else
+            if magnoreConnection then
+                magnoreConnection:Disconnect()
+                magnoreConnection = nil
+            end
         end
    end,
 })
@@ -1441,6 +1678,24 @@ ScriptsTab:CreateButton({
 -- SETTINGS TAB
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
+SettingsTab:CreateToggle({
+   Name = "🛡️ Anti-Cheat Bypass",
+   CurrentValue = false,
+   Callback = function(Value)
+        if Value then
+            enableBypass()
+        else
+            bypassEnabled = false
+            Rayfield:Notify({
+               Title = "Bypass Disabled",
+               Content = "Anti-cheat bypass deactivated",
+               Duration = 2,
+               Image = 4483362458,
+            })
+        end
+   end,
+})
+
 SettingsTab:CreateButton({
    Name = "🚨 PANIC BUTTON 🚨",
    Callback = function()
@@ -1475,3 +1730,10 @@ SettingsTab:CreateKeybind({
 })
 
 Rayfield:LoadConfiguration()
+
+Rayfield:Notify({
+   Title = "lua.gg Hub Loaded",
+   Content = "All features ready! Press P for panic mode.",
+   Duration = 5,
+   Image = 4483362458,
+})
