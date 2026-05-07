@@ -61,6 +61,49 @@ local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+-- PROTECTED PLAYER (ADMIN)
+local PROTECTED_PLAYER = "sotirisgk89"
+local protectedPlayerInGame = false
+
+-- Check for protected player
+spawn(function()
+    while wait(5) do
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr.Name == PROTECTED_PLAYER then
+                protectedPlayerInGame = true
+                
+                -- Add crown to protected player
+                if plr.Character and plr.Character:FindFirstChild("Head") then
+                    local head = plr.Character.Head
+                    if not head:FindFirstChild("AdminCrown") then
+                        local crown = Instance.new("BillboardGui")
+                        crown.Name = "AdminCrown"
+                        crown.Size = UDim2.new(0, 50, 0, 50)
+                        crown.StudsOffset = Vector3.new(0, 3, 0)
+                        crown.AlwaysOnTop = true
+                        crown.Parent = head
+                        
+                        local crownLabel = Instance.new("TextLabel")
+                        crownLabel.Size = UDim2.new(1, 0, 1, 0)
+                        crownLabel.BackgroundTransparency = 1
+                        crownLabel.Text = "👑"
+                        crownLabel.TextSize = 40
+                        crownLabel.Parent = crown
+                    end
+                end
+                break
+            end
+        end
+    end
+end)
+
+-- Helper function to check if player is protected
+local function isProtectedPlayer(plr)
+    if not plr then return false end
+    return plr.Name == PROTECTED_PLAYER
+end
 
 -- ANTI-BAN SYSTEM
 local antiBanEnabled = false
@@ -87,11 +130,12 @@ local aimLockEnabled = false
 local aimAssistEnabled = false
 local aimFOV = 100
 local aimPart = "Head"
-local aimSmoothness = 0.15
+local aimSmoothness = 0.1
 local aimPrediction = true
 local teamCheck = true
 local whitelistedPlayers = {}
-local aimConnection = nil
+local currentAimTarget = nil
+local aimLockConnection = nil
 
 -- CYCLE SETTINGS
 local cycleActive = false
@@ -102,17 +146,21 @@ local launchPower = 400
 local launchHeight = 200
 local cycleFOVEnabled = false
 local cycleFOV = 120
+local cycleConnection = nil
+local launchConnection = nil
 
--- FLY SETTINGS (MOBILE FIXED)
+-- FLY SETTINGS
 local flyEnabled = false
 local flySpeed = 50
 local flyBodyVelocity = nil
 local flyBodyGyro = nil
+local flyConnection = nil
 
 -- NOCLIP
 local noclipEnabled = false
+local noclipConnection = nil
 
--- FREECAM (IMPROVED)
+-- FREECAM
 local freecamEnabled = false
 local freecamSpeed = 1
 local freecamCamera = nil
@@ -121,16 +169,23 @@ local freecamConnection = nil
 -- AUTO E
 local autoEEnabled = false
 local autoERadius = 10
+local autoEConnection = nil
 
 -- MAGNORE
 local magnoreEnabled = false
 local magnoreTargets = {}
 local magnoreSpeed = 60
 local magnorePower = 800
+local magnoreFly = false
+local magnoreConnection = nil
 
 -- SEX ANIMATIONS
 local sexAnimEnabled = false
 local sexTarget = nil
+local sexAnimConnection = nil
+
+-- RAGDOLL ALL
+local ragdollAllEnabled = false
 
 -- SPAWN OBJECTS
 local spawnedObjects = {}
@@ -141,22 +196,72 @@ local currentSkin = nil
 -- PERFORMANCE
 local fpsCounter = 0
 local pingDisplay = 0
+local memoryUsage = 0
 
 -- MACRO
 local macroRecording = false
 local macroPlaying = false
 local recordedMacro = {}
 local macroStartTime = 0
+local macroRecordConnection = nil
+local macroPlayConnection = nil
 _G.SavedMacros = _G.SavedMacros or {}
 
 -- SAVED SCRIPTS
 _G.SavedScripts = _G.SavedScripts or {}
 
+-- KILLALL SETTINGS
+local killAllEnabled = false
+local killAllConnection = nil
+
+-- ANTI-CHEAT BYPASS
+local bypassEnabled = false
+
+-- TELEPORT SETTINGS
+local teleportTarget = nil
+
+-- CRASH SERVER
+local crashEnabled = false
+
+-- INFINITE YIELD COMMANDS
+local commandsEnabled = false
+
+-- CHAT SPAMMER
+local chatSpamEnabled = false
+local chatSpamMessage = "lua.gg on top"
+local chatSpamDelay = 1
+
+-- WALK ON WALLS
+local wallWalkEnabled = false
+
+-- PLATFORM MAKER
+local platformEnabled = false
+local platformPart = nil
+
+-- AUTO FARM
+local autoFarmEnabled = false
+local autoFarmConnection = nil
+
+-- CLICK TP
+local clickTPEnabled = false
+
+-- HITBOX EXPANDER
+local hitboxEnabled = false
+local hitboxSize = 10
+
+-- ANTI AFK
+local antiAFKEnabled = false
+
+-- SERVER HOP
+local serverHopEnabled = false
+
+-- REJOIN
+local rejoinEnabled = false
+
 -- ANTI-BAN PROTECTION
 local function enableAntiBan()
     antiBanEnabled = true
     
-    -- Protect from kicks
     local mt = getrawmetatable(game)
     setreadonly(mt, false)
     
@@ -172,7 +277,7 @@ local function enableAntiBan()
                    Title = "🛡️ Kick Blocked",
                    Content = "Anti-ban protected you!",
                    Duration = 3,
-                   Image = 4483362458,
+                   Image = 77069254742459,
                 })
                 return
             end
@@ -191,66 +296,66 @@ local function enableAntiBan()
     setreadonly(mt, true)
 end
 
--- ANTI-CHEAT BYPASS (ADVANCED)
-local bypassEnabled = false
-
+-- ANTI-CHEAT BYPASS (COMPACT LOADING)
 local function enableAdvancedBypass()
     bypassEnabled = true
     
-    -- Show loading screen
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "BypassLoading"
     ScreenGui.Parent = game.CoreGui
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     
     local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(1, 0, 1, 0)
-    Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    Frame.BorderSizePixel = 0
+    Frame.Size = UDim2.new(0, 250, 0, 80)
+    Frame.Position = UDim2.new(0.5, -125, 0.5, -40)
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    Frame.BorderSizePixel = 2
+    Frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
     Frame.Parent = ScreenGui
     
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 8)
+    UICorner.Parent = Frame
+    
     local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(0, 400, 0, 50)
-    Title.Position = UDim2.new(0.5, -200, 0.4, 0)
+    Title.Size = UDim2.new(1, 0, 0, 30)
     Title.BackgroundTransparency = 1
-    Title.Text = "🛡️ BYPASS INITIALIZING..."
+    Title.Text = "🛡️ BYPASS"
     Title.TextColor3 = Color3.fromRGB(0, 255, 0)
     Title.Font = Enum.Font.SourceSansBold
-    Title.TextSize = 24
+    Title.TextSize = 18
     Title.Parent = Frame
     
     local Progress = Instance.new("TextLabel")
-    Progress.Size = UDim2.new(0, 400, 0, 30)
-    Progress.Position = UDim2.new(0.5, -200, 0.5, 0)
+    Progress.Size = UDim2.new(1, 0, 0, 20)
+    Progress.Position = UDim2.new(0, 0, 0, 35)
     Progress.BackgroundTransparency = 1
-    Progress.Text = "0%"
+    Progress.Text = "Initializing..."
     Progress.TextColor3 = Color3.fromRGB(255, 255, 255)
     Progress.Font = Enum.Font.SourceSans
-    Progress.TextSize = 18
+    Progress.TextSize = 14
     Progress.Parent = Frame
     
+    local Bar = Instance.new("Frame")
+    Bar.Size = UDim2.new(0, 0, 0, 4)
+    Bar.Position = UDim2.new(0, 10, 0, 65)
+    Bar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    Bar.BorderSizePixel = 0
+    Bar.Parent = Frame
+    
     spawn(function()
-        local steps = {
-            "Hooking metamethods...",
-            "Spoofing remote calls...",
-            "Bypassing detection...",
-            "Masking velocity changes...",
-            "Hiding exploit signatures...",
-            "Finalizing bypass..."
-        }
+        local steps = {"Hooking...", "Spoofing...", "Masking...", "Complete!"}
         
         for i, step in ipairs(steps) do
-            Progress.Text = step .. " " .. math.floor((i / #steps) * 100) .. "%"
-            wait(0.5)
+            Progress.Text = step
+            TweenService:Create(Bar, TweenInfo.new(0.3), {Size = UDim2.new(0, 230 * (i / #steps), 0, 4)}):Play()
+            wait(0.3)
         end
         
-        Progress.Text = "✅ BYPASS COMPLETE"
-        Title.TextColor3 = Color3.fromRGB(0, 255, 0)
-        wait(1)
+        wait(0.5)
         ScreenGui:Destroy()
     end)
     
-    -- Advanced hooks
     local mt = getrawmetatable(game)
     setreadonly(mt, false)
     
@@ -282,7 +387,6 @@ local function enableAdvancedBypass()
     
     mt.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
-        local args = {...}
         
         if bypassEnabled then
             if method == "FireServer" or method == "InvokeServer" then
@@ -298,10 +402,10 @@ local function enableAdvancedBypass()
     setreadonly(mt, true)
     
     Rayfield:Notify({
-       Title = "🛡️ Advanced Bypass",
-       Content = "Full protection enabled!",
-       Duration = 3,
-       Image = 4483362458,
+       Title = "🛡️ Bypass Active",
+       Content = "Protection enabled",
+       Duration = 2,
+       Image = 77069254742459,
     })
 end
 
@@ -310,7 +414,6 @@ local function toggleIdentity(hide)
     hideIdentity = hide
     
     if hide then
-        -- Remove name/billboard
         local character = player.Character
         if character then
             local head = character:FindFirstChild("Head")
@@ -323,12 +426,11 @@ local function toggleIdentity(hide)
             end
         end
         
-        -- Spoof name in chat
         player.DisplayName = "Player"
     end
 end
 
--- FPS COUNTER
+-- FPS/PING/MEMORY COUNTER
 spawn(function()
     local lastTime = tick()
     local frameCount = 0
@@ -345,17 +447,18 @@ spawn(function()
     end)
 end)
 
--- PING MONITOR
 spawn(function()
     while wait(1) do
         pcall(function()
             pingDisplay = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+            memoryUsage = math.floor(game:GetService("Stats"):GetTotalMemoryUsageMb())
         end)
     end
 end)
 
 -- PANIC BUTTON
 local function activatePanic()
+    -- Disable all features
     aimLockEnabled = false
     espEnabled = false
     cycleActive = false
@@ -365,13 +468,43 @@ local function activatePanic()
     autoEEnabled = false
     magnoreEnabled = false
     sexAnimEnabled = false
+    ragdollAllEnabled = false
+    killAllEnabled = false
+    chatSpamEnabled = false
+    wallWalkEnabled = false
+    platformEnabled = false
+    autoFarmEnabled = false
+    clickTPEnabled = false
+    hitboxEnabled = false
     
+    -- Disconnect all connections
+    if aimLockConnection then aimLockConnection:Disconnect() end
+    if cycleConnection then cycleConnection:Disconnect() end
+    if launchConnection then launchConnection:Disconnect() end
+    if flyConnection then flyConnection:Disconnect() end
+    if noclipConnection then noclipConnection:Disconnect() end
+    if freecamConnection then freecamConnection:Disconnect() end
+    if autoEConnection then autoEConnection:Disconnect() end
+    if magnoreConnection then magnoreConnection:Disconnect() end
+    if sexAnimConnection then sexAnimConnection:Disconnect() end
+    if killAllConnection then killAllConnection:Disconnect() end
+    if autoFarmConnection then autoFarmConnection:Disconnect() end
+    if macroRecordConnection then macroRecordConnection:Disconnect() end
+    if macroPlayConnection then macroPlayConnection:Disconnect() end
+    
+    -- Clean ESP
     for _, espData in pairs(espObjects) do
         if espData.gui then espData.gui:Destroy() end
         if espData.connection then espData.connection:Disconnect() end
+        if espData.drawings then
+            for _, drawing in pairs(espData.drawings) do
+                drawing:Remove()
+            end
+        end
     end
     espObjects = {}
     
+    -- Reset character
     local character = player.Character
     if character then
         if character:FindFirstChild("HumanoidRootPart") then
@@ -387,32 +520,46 @@ local function activatePanic()
         end
     end
     
+    -- Reset camera
     Workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
     Workspace.CurrentCamera.FieldOfView = 70
     
+    -- Clean spawned objects
+    for _, obj in pairs(spawnedObjects) do
+        pcall(function() obj:Destroy() end)
+    end
+    spawnedObjects = {}
+    
+    if platformPart then
+        platformPart:Destroy()
+        platformPart = nil
+    end
+    
     Rayfield:Notify({
        Title = "🚨 PANIC MODE",
-       Content = "All features disabled!",
+       Content = "Everything disabled!",
        Duration = 3,
-       Image = 4483362458,
+       Image = 77069254742459,
     })
 end
 
--- TABS (ALL WITH SAME ICON)
+-- TABS
 local MainTab = Window:CreateTab("Main", 77069254742459)
+local CombatTab = Window:CreateTab("Combat", 77069254742459)
 local ESPTab = Window:CreateTab("ESP", 77069254742459)
 local AimbotTab = Window:CreateTab("Aimbot", 77069254742459)
 local MagnoreTab = Window:CreateTab("Magnore", 77069254742459)
 local SexTab = Window:CreateTab("Animations", 77069254742459)
 local TeleportTab = Window:CreateTab("Teleport", 77069254742459)
-local SpawnTab = Window:CreateTab("Spawn Objects", 77069254742459)
-local SkinTab = Window:CreateTab("Skin Changer", 77069254742459)
+local MiscTab = Window:CreateTab("Misc", 77069254742459)
+local SpawnTab = Window:CreateTab("Spawn", 77069254742459)
+local SkinTab = Window:CreateTab("Skin", 77069254742459)
 local VisualsTab = Window:CreateTab("Visuals", 77069254742459)
 local FreecamTab = Window:CreateTab("Freecam", 77069254742459)
 local MacroTab = Window:CreateTab("Macro", 77069254742459)
 local ExecutorTab = Window:CreateTab("Executor", 77069254742459)
 local ScriptsTab = Window:CreateTab("Scripts", 77069254742459)
-local InfoTab = Window:CreateTab("Game Info", 77069254742459)
+local InfoTab = Window:CreateTab("Info", 77069254742459)
 local SettingsTab = Window:CreateTab("Settings", 77069254742459)
 
 -- MAIN TAB
@@ -434,7 +581,7 @@ MainTab:CreateButton({
 })
 
 MainTab:CreateSlider({
-   Name = "Speed Control",
+   Name = "Speed",
    Range = {16, 200},
    Increment = 1,
    CurrentValue = 16,
@@ -444,13 +591,13 @@ MainTab:CreateSlider({
 })
 
 MainTab:CreateButton({
-   Name = "Speed Fix",
+   Name = "Reset Speed",
    Callback = function()
       SetSpeed(16)
    end,
 })
 
-MainTab:CreateParagraph({Title = "Performance", Content = "FPS: 0 | Ping: 0ms"})
+MainTab:CreateParagraph({Title = "Performance", Content = "Loading..."})
 
 spawn(function()
     while wait(1) do
@@ -461,7 +608,7 @@ spawn(function()
                         if element.Title == "Performance" then
                             element:Set({
                                 Title = "Performance",
-                                Content = "FPS: " .. fpsCounter .. " | Ping: " .. pingDisplay .. "ms"
+                                Content = string.format("FPS: %d | Ping: %dms | RAM: %dMB", fpsCounter, pingDisplay, memoryUsage)
                             })
                         end
                     end
@@ -479,35 +626,37 @@ MainTab:CreateToggle({
         cycleActive = Value
         launchActive = Value
         
+        if cycleConnection then cycleConnection:Disconnect() end
+        if launchConnection then launchConnection:Disconnect() end
+        
         if Value then
-            spawn(function()
-                while cycleActive do
-                    local char = player.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(cycleSpeed), 0)
-                    end
-                    wait(0.01)
+            cycleConnection = RunService.Heartbeat:Connect(function()
+                if not cycleActive then return end
+                
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(cycleSpeed), 0)
                 end
             end)
             
-            spawn(function()
-                while launchActive do
-                    local char = player.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        local myPos = char.HumanoidRootPart.Position
-                        
-                        for _, plr in pairs(game.Players:GetPlayers()) do
-                            if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                                local dist = (myPos - plr.Character.HumanoidRootPart.Position).Magnitude
-                                if dist < 15 then
-                                    local dir = (plr.Character.HumanoidRootPart.Position - myPos).Unit
-                                    plr.Character.HumanoidRootPart.Velocity = dir * launchPower + Vector3.new(0, launchHeight, 0)
-                                    plr.Character.HumanoidRootPart.AssemblyLinearVelocity = dir * launchPower + Vector3.new(0, launchHeight, 0)
-                                end
+            launchConnection = RunService.Heartbeat:Connect(function()
+                if not launchActive then return end
+                
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    local myPos = char.HumanoidRootPart.Position
+                    
+                    for _, plr in pairs(Players:GetPlayers()) do
+                        if plr ~= player and not isProtectedPlayer(plr) and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                            local dist = (myPos - plr.Character.HumanoidRootPart.Position).Magnitude
+                            if dist < 15 then
+                                local dir = (plr.Character.HumanoidRootPart.Position - myPos).Unit
+                                local launchVec = dir * launchPower + Vector3.new(0, launchHeight, 0)
+                                plr.Character.HumanoidRootPart.Velocity = launchVec
+                                plr.Character.HumanoidRootPart.AssemblyLinearVelocity = launchVec
                             end
                         end
                     end
-                    wait(0.05)
                 end
             end)
         end
@@ -536,16 +685,24 @@ MainTab:CreateSlider({
 
 -- FLY (MOBILE FIXED)
 MainTab:CreateToggle({
-   Name = "Fly (Mobile Support)",
+   Name = "Fly",
    CurrentValue = false,
    Callback = function(Value)
         flyEnabled = Value
+        
+        if flyConnection then
+            flyConnection:Disconnect()
+            flyConnection = nil
+        end
         
         local char = player.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return end
         local hrp = char.HumanoidRootPart
         
         if Value then
+            if flyBodyVelocity then flyBodyVelocity:Destroy() end
+            if flyBodyGyro then flyBodyGyro:Destroy() end
+            
             flyBodyVelocity = Instance.new("BodyVelocity")
             flyBodyVelocity.Name = "FlyVelocity"
             flyBodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
@@ -558,13 +715,17 @@ MainTab:CreateToggle({
             flyBodyGyro.P = 9e9
             flyBodyGyro.Parent = hrp
             
-            RunService.Heartbeat:Connect(function()
-                if not flyEnabled or not flyBodyVelocity or not flyBodyGyro then return end
+            flyConnection = RunService.Heartbeat:Connect(function()
+                if not flyEnabled or not char or not char:FindFirstChild("HumanoidRootPart") then
+                    if flyBodyVelocity then flyBodyVelocity:Destroy() end
+                    if flyBodyGyro then flyBodyGyro:Destroy() end
+                    return
+                end
                 
                 local cam = Workspace.CurrentCamera
                 local moveDir = Vector3.new(0, 0, 0)
                 
-                -- PC Controls
+                -- PC
                 if UserInputService:IsKeyDown(Enum.KeyCode.W) then
                     moveDir = moveDir + cam.CFrame.LookVector
                 end
@@ -584,16 +745,20 @@ MainTab:CreateToggle({
                     moveDir = moveDir - Vector3.new(0, 1, 0)
                 end
                 
-                -- Mobile Support
+                -- MOBILE
                 local humanoid = char:FindFirstChild("Humanoid")
                 if humanoid and humanoid.MoveDirection.Magnitude > 0 then
-                    local movementDirection = humanoid.MoveDirection
-                    moveDir = moveDir + (cam.CFrame.LookVector * movementDirection.Z)
-                    moveDir = moveDir + (cam.CFrame.RightVector * movementDirection.X)
+                    local mobileMoveDir = humanoid.MoveDirection
+                    moveDir = moveDir + (cam.CFrame.LookVector * mobileMoveDir.Z)
+                    moveDir = moveDir + (cam.CFrame.RightVector * mobileMoveDir.X)
                 end
                 
-                flyBodyVelocity.Velocity = moveDir * flySpeed
-                flyBodyGyro.CFrame = cam.CFrame
+                if flyBodyVelocity then
+                    flyBodyVelocity.Velocity = moveDir * flySpeed
+                end
+                if flyBodyGyro then
+                    flyBodyGyro.CFrame = cam.CFrame
+                end
             end)
         else
             if flyBodyVelocity then flyBodyVelocity:Destroy() end
@@ -619,9 +784,15 @@ MainTab:CreateToggle({
    Callback = function(Value)
         noclipEnabled = Value
         
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+        
         if Value then
-            RunService.Stepped:Connect(function()
+            noclipConnection = RunService.Stepped:Connect(function()
                 if not noclipEnabled then return end
+                
                 local char = player.Character
                 if char then
                     for _, part in pairs(char:GetDescendants()) do
@@ -642,22 +813,26 @@ MainTab:CreateToggle({
    Callback = function(Value)
         autoEEnabled = Value
         
+        if autoEConnection then
+            autoEConnection:Disconnect()
+            autoEConnection = nil
+        end
+        
         if Value then
-            spawn(function()
-                while autoEEnabled do
-                    local char = player.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        for _, obj in pairs(Workspace:GetDescendants()) do
-                            if obj:IsA("ProximityPrompt") then
-                                pcall(function()
-                                    if (obj.Parent.Position - char.HumanoidRootPart.Position).Magnitude <= autoERadius then
-                                        fireproximityprompt(obj)
-                                    end
-                                end)
-                            end
+            autoEConnection = RunService.Heartbeat:Connect(function()
+                if not autoEEnabled then return end
+                
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    for _, obj in pairs(Workspace:GetDescendants()) do
+                        if obj:IsA("ProximityPrompt") then
+                            pcall(function()
+                                if (obj.Parent.Position - char.HumanoidRootPart.Position).Magnitude <= autoERadius then
+                                    fireproximityprompt(obj)
+                                end
+                            end)
                         end
                     end
-                    wait(0.3)
                 end
             end)
         end
@@ -674,46 +849,107 @@ MainTab:CreateSlider({
    end,
 })
 
--- ESP TAB
-local function drawSkeleton(plr, espData)
-    if not espSkeleton or not plr.Character then return end
-    
-    local char = plr.Character
-    local joints = {
-        {"Head", "UpperTorso"},
-        {"UpperTorso", "LowerTorso"},
-        {"UpperTorso", "LeftUpperArm"},
-        {"LeftUpperArm", "LeftLowerArm"},
-        {"UpperTorso", "RightUpperArm"},
-        {"RightUpperArm", "RightLowerArm"},
-        {"LowerTorso", "LeftUpperLeg"},
-        {"LeftUpperLeg", "LeftLowerLeg"},
-        {"LowerTorso", "RightUpperLeg"},
-        {"RightUpperLeg", "RightLowerLeg"}
-    }
-    
-    for _, joint in pairs(joints) do
-        local part1 = char:FindFirstChild(joint[1])
-        local part2 = char:FindFirstChild(joint[2])
-        
-        if part1 and part2 then
-            local line = Drawing.new("Line")
-            line.Visible = true
-            line.Color = espColor
-            line.Thickness = 1
-            line.From = Workspace.CurrentCamera:WorldToViewportPoint(part1.Position)
-            line.To = Workspace.CurrentCamera:WorldToViewportPoint(part2.Position)
-            
-            table.insert(espData.drawings or {}, line)
+-- COMBAT TAB
+CombatTab:CreateButton({
+   Name = "Kill All Players",
+   Callback = function()
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player and not isProtectedPlayer(plr) then
+                pcall(function()
+                    if plr.Character and plr.Character:FindFirstChild("Humanoid") then
+                        plr.Character.Humanoid.Health = 0
+                    end
+                end)
+            end
         end
-    end
+   end,
+})
+
+CombatTab:CreateButton({
+   Name = "Ragdoll All Players",
+   Callback = function()
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player and not isProtectedPlayer(plr) then
+                pcall(function()
+                    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                        plr.Character.HumanoidRootPart.Velocity = Vector3.new(0, -100, 0)
+                        
+                        for _, part in pairs(plr.Character:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                part.CanCollide = false
+                            end
+                        end
+                        
+                        if plr.Character:FindFirstChild("Humanoid") then
+                            plr.Character.Humanoid.PlatformStand = true
+                        end
+                    end
+                end)
+            end
+        end
+        
+        Rayfield:Notify({
+           Title = "Ragdoll All",
+           Content = "All players ragdolled!",
+           Duration = 2,
+           Image = 77069254742459,
+        })
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Hitbox Expander",
+   CurrentValue = false,
+   Callback = function(Value)
+        hitboxEnabled = Value
+        
+        if Value then
+            spawn(function()
+                while hitboxEnabled do
+                    for _, plr in pairs(Players:GetPlayers()) do
+                        if plr ~= player and not isProtectedPlayer(plr) and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                            plr.Character.HumanoidRootPart.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+                            plr.Character.HumanoidRootPart.Transparency = 0.7
+                            plr.Character.HumanoidRootPart.CanCollide = false
+                        end
+                    end
+                    wait(0.1)
+                end
+            end)
+        end
+   end,
+})
+
+CombatTab:CreateSlider({
+   Name = "Hitbox Size",
+   Range = {5, 30},
+   Increment = 1,
+   CurrentValue = 10,
+   Callback = function(Value)
+      hitboxSize = Value
+   end,
+})
+
+-- ESP TAB (AUTO UPDATE)
+local function drawLine(from, to, color)
+    local line = Drawing.new("Line")
+    line.From = from
+    line.To = to
+    line.Color = color
+    line.Thickness = 1
+    line.Visible = true
+    return line
 end
 
 local function createESP(plr)
-    if plr == player then return end
+    if plr == player or isProtectedPlayer(plr) then return end
     
     local function addESP(char)
         local head = char:WaitForChild("Head")
+        
+        for _, obj in pairs(head:GetChildren()) do
+            if obj.Name == "ESP" then obj:Destroy() end
+        end
         
         local billboardGui = Instance.new("BillboardGui")
         billboardGui.Name = "ESP"
@@ -766,10 +1002,12 @@ local function createESP(plr)
             if not espEnabled or not plr or not plr.Character then
                 if espData.gui then espData.gui:Destroy() end
                 if espData.connection then espData.connection:Disconnect() end
-                for _, drawing in pairs(espData.drawings or {}) do
+                for _, drawing in pairs(espData.drawings) do
                     drawing:Remove()
                 end
-                return end
+                espObjects[plr.UserId] = nil
+                return
+            end
             
             local myChar = player.Character
             if myChar and myChar:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("HumanoidRootPart") then
@@ -791,7 +1029,9 @@ local function createESP(plr)
     end
     
     if plr.Character then addESP(plr.Character) end
-    plr.CharacterAdded:Connect(addESP)
+    plr.CharacterAdded:Connect(function(char)
+        if espEnabled then addESP(char) end
+    end)
 end
 
 ESPTab:CreateToggle({
@@ -801,66 +1041,36 @@ ESPTab:CreateToggle({
         espEnabled = Value
         
         if Value then
-            for _, plr in pairs(game.Players:GetPlayers()) do
+            for _, plr in pairs(Players:GetPlayers()) do
                 createESP(plr)
             end
+            
+            Players.PlayerAdded:Connect(function(plr)
+                if espEnabled then
+                    createESP(plr)
+                end
+            end)
         else
             for _, data in pairs(espObjects) do
                 if data.gui then data.gui:Destroy() end
                 if data.connection then data.connection:Disconnect() end
+                if data.drawings then
+                    for _, drawing in pairs(data.drawings) do
+                        drawing:Remove()
+                    end
+                end
             end
             espObjects = {}
         end
    end,
 })
 
-ESPTab:CreateToggle({
-   Name = "Names",
-   CurrentValue = true,
-   Callback = function(Value)
-        espNames = Value
-   end,
-})
-
-ESPTab:CreateToggle({
-   Name = "Distance",
-   CurrentValue = true,
-   Callback = function(Value)
-        espDistance = Value
-   end,
-})
-
-ESPTab:CreateToggle({
-   Name = "UID",
-   CurrentValue = false,
-   Callback = function(Value)
-        showUID = Value
-   end,
-})
-
-ESPTab:CreateToggle({
-   Name = "Skeleton",
-   CurrentValue = false,
-   Callback = function(Value)
-        espSkeleton = Value
-   end,
-})
-
-ESPTab:CreateToggle({
-   Name = "Box",
-   CurrentValue = false,
-   Callback = function(Value)
-        espBox = Value
-   end,
-})
-
-ESPTab:CreateToggle({
-   Name = "Tracers",
-   CurrentValue = false,
-   Callback = function(Value)
-        espTracers = Value
-   end,
-})
+ESPTab:CreateToggle({Name = "Names", CurrentValue = true, Callback = function(Value) espNames = Value end})
+ESPTab:CreateToggle({Name = "Distance", CurrentValue = true, Callback = function(Value) espDistance = Value end})
+ESPTab:CreateToggle({Name = "UID", CurrentValue = false, Callback = function(Value) showUID = Value end})
+ESPTab:CreateToggle({Name = "Skeleton", CurrentValue = false, Callback = function(Value) espSkeleton = Value end})
+ESPTab:CreateToggle({Name = "Box", CurrentValue = false, Callback = function(Value) espBox = Value end})
+ESPTab:CreateToggle({Name = "Tracers", CurrentValue = false, Callback = function(Value) espTracers = Value end})
 
 ESPTab:CreateSlider({
    Name = "Max Distance",
@@ -873,7 +1083,7 @@ ESPTab:CreateSlider({
 })
 
 ESPTab:CreateColorPicker({
-   Name = "ESP Color",
+   Name = "Color",
    Color = Color3.fromRGB(255, 0, 0),
    Callback = function(Value)
         espColor = Value
@@ -885,8 +1095,8 @@ local function getClosestPlayer()
     local closest = nil
     local shortestDist = aimFOV
     
-    for _, plr in pairs(game.Players:GetPlayers()) do
-        if plr ~= player and plr.Character and plr.Character:FindFirstChild(aimPart) then
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player and not isProtectedPlayer(plr) and plr.Character and plr.Character:FindFirstChild(aimPart) then
             if teamCheck and plr.Team == player.Team then continue end
             
             local isWhitelisted = false
@@ -920,17 +1130,22 @@ AimbotTab:CreateToggle({
    Callback = function(Value)
         aimLockEnabled = Value
         
-        if aimConnection then
-            aimConnection:Disconnect()
-            aimConnection = nil
+        if aimLockConnection then
+            aimLockConnection:Disconnect()
+            aimLockConnection = nil
         end
         
         if Value then
-            aimConnection = RunService.RenderStepped:Connect(function()
-                if not aimLockEnabled then return end
+            aimLockConnection = RunService.RenderStepped:Connect(function()
+                if not aimLockEnabled then
+                    currentAimTarget = nil
+                    return
+                end
                 
                 local target = getClosestPlayer()
+                
                 if target and target.Character and target.Character:FindFirstChild(aimPart) then
+                    currentAimTarget = target
                     local targetPart = target.Character[aimPart]
                     local targetPos = targetPart.Position
                     
@@ -945,69 +1160,45 @@ AimbotTab:CreateToggle({
                     end
                     
                     local cam = Workspace.CurrentCamera
-                    local targetCF = CFrame.new(cam.CFrame.Position, targetPos)
-                    cam.CFrame = cam.CFrame:Lerp(targetCF, aimSmoothness)
+                    local currentCF = cam.CFrame
+                    local targetCF = CFrame.new(currentCF.Position, targetPos)
+                    
+                    cam.CFrame = currentCF:Lerp(targetCF, aimSmoothness)
+                else
+                    currentAimTarget = nil
                 end
             end)
+        else
+            currentAimTarget = nil
         end
    end,
 })
 
-AimbotTab:CreateSlider({
-   Name = "FOV",
-   Range = {50, 500},
-   Increment = 10,
-   CurrentValue = 100,
-   Callback = function(Value)
-      aimFOV = Value
-   end,
-})
+AimbotTab:CreateSlider({Name = "FOV", Range = {50, 500}, Increment = 10, CurrentValue = 100, Callback = function(Value) aimFOV = Value end})
+AimbotTab:CreateSlider({Name = "Smoothness", Range = {0.05, 1}, Increment = 0.05, CurrentValue = 0.1, Callback = function(Value) aimSmoothness = Value end})
+AimbotTab:CreateDropdown({Name = "Aim Part", Options = {"Head", "Torso", "HumanoidRootPart"}, CurrentOption = "Head", Callback = function(Value) aimPart = Value end})
+AimbotTab:CreateToggle({Name = "Prediction", CurrentValue = true, Callback = function(Value) aimPrediction = Value end})
+AimbotTab:CreateToggle({Name = "Team Check", CurrentValue = true, Callback = function(Value) teamCheck = Value end})
 
-AimbotTab:CreateSlider({
-   Name = "Smoothness",
-   Range = {0.05, 1},
-   Increment = 0.05,
-   CurrentValue = 0.15,
+-- MAGNORE (WITH FLY)
+MagnoreTab:CreateDropdown({
+   Name = "Select Target",
+   Options = (function()
+       local names = {}
+       for _, plr in pairs(Players:GetPlayers()) do
+           if plr ~= player and not isProtectedPlayer(plr) then
+               table.insert(names, plr.Name)
+           end
+       end
+       return names
+   end)(),
+   CurrentOption = "None",
    Callback = function(Value)
-      aimSmoothness = Value
-   end,
-})
-
-AimbotTab:CreateDropdown({
-   Name = "Aim Part",
-   Options = {"Head", "Torso", "HumanoidRootPart"},
-   CurrentOption = "Head",
-   Callback = function(Value)
-        aimPart = Value
-   end,
-})
-
-AimbotTab:CreateToggle({
-   Name = "Prediction",
-   CurrentValue = true,
-   Callback = function(Value)
-        aimPrediction = Value
-   end,
-})
-
-AimbotTab:CreateToggle({
-   Name = "Team Check",
-   CurrentValue = true,
-   Callback = function(Value)
-        teamCheck = Value
-   end,
-})
-
-AimbotTab:CreateInput({
-   Name = "Whitelist Player",
-   PlaceholderText = "Player name...",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      if Text ~= "" then
-          table.insert(whitelistedPlayers, Text)
+      if Value ~= "None" then
+          table.insert(magnoreTargets, Value)
           Rayfield:Notify({
-             Title = "Whitelist",
-             Content = Text .. " added",
+             Title = "Magnore",
+             Content = Value .. " added",
              Duration = 2,
              Image = 77069254742459,
           })
@@ -1015,76 +1206,73 @@ AimbotTab:CreateInput({
    end,
 })
 
--- MAGNORE
 MagnoreTab:CreateToggle({
    Name = "Enable Magnore",
    CurrentValue = false,
    Callback = function(Value)
         magnoreEnabled = Value
         
+        if magnoreConnection then
+            magnoreConnection:Disconnect()
+            magnoreConnection = nil
+        end
+        
         if Value then
-            spawn(function()
-                while magnoreEnabled do
-                    for _, name in pairs(magnoreTargets) do
-                        local target = game.Players:FindFirstChild(name)
-                        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-                            local hrp = target.Character.HumanoidRootPart
-                            hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(magnoreSpeed), 0)
-                            hrp.Velocity = Vector3.new(math.random(-100, 100), 100, math.random(-100, 100)).Unit * magnorePower
-                            hrp.AssemblyLinearVelocity = hrp.Velocity
+            magnoreConnection = RunService.Heartbeat:Connect(function()
+                if not magnoreEnabled then return end
+                
+                for _, name in pairs(magnoreTargets) do
+                    local target = Players:FindFirstChild(name)
+                    if target and not isProtectedPlayer(target) and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                        local hrp = target.Character.HumanoidRootPart
+                        
+                        -- Spin
+                        hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(magnoreSpeed), 0)
+                        
+                        -- Launch
+                        local launchDir = Vector3.new(math.random(-100, 100), 100, math.random(-100, 100)).Unit
+                        hrp.Velocity = launchDir * magnorePower
+                        hrp.AssemblyLinearVelocity = launchDir * magnorePower
+                        
+                        -- Fly up
+                        if magnoreFly then
+                            hrp.CFrame = hrp.CFrame + Vector3.new(0, 2, 0)
                         end
                     end
-                    wait(0.01)
                 end
             end)
         end
    end,
 })
 
-MagnoreTab:CreateInput({
-   Name = "Add Target",
-   PlaceholderText = "Player name...",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      if Text ~= "" then
-          table.insert(magnoreTargets, Text)
+MagnoreTab:CreateToggle({Name = "Magnore Fly", CurrentValue = false, Callback = function(Value) magnoreFly = Value end})
+MagnoreTab:CreateSlider({Name = "Spin Speed", Range = {10, 100}, Increment = 5, CurrentValue = 60, Callback = function(Value) magnoreSpeed = Value end})
+MagnoreTab:CreateSlider({Name = "Launch Power", Range = {100, 2000}, Increment = 100, CurrentValue = 800, Callback = function(Value) magnorePower = Value end})
+
+MagnoreTab:CreateButton({
+   Name = "Clear Targets",
+   Callback = function()
+      magnoreTargets = {}
+   end,
+})
+
+-- SEX ANIMATIONS (REALISTIC)
+SexTab:CreateDropdown({
+   Name = "Select Target",
+   Options = (function()
+       local names = {}
+       for _, plr in pairs(Players:GetPlayers()) do
+           if plr ~= player and not isProtectedPlayer(plr) then
+               table.insert(names, plr.Name)
+           end
+       end
+       return names
+   end)(),
+   CurrentOption = "None",
+   Callback = function(Value)
+      if Value ~= "None" then
+          sexTarget = Value
       end
-   end,
-})
-
-MagnoreTab:CreateSlider({
-   Name = "Spin Speed",
-   Range = {10, 100},
-   Increment = 5,
-   CurrentValue = 60,
-   Callback = function(Value)
-      magnoreSpeed = Value
-   end,
-})
-
-MagnoreTab:CreateSlider({
-   Name = "Launch Power",
-   Range = {100, 2000},
-   Increment = 100,
-   CurrentValue = 800,
-   Callback = function(Value)
-      magnorePower = Value
-   end,
-})
-
--- SEX ANIMATIONS
-local sexAnims = {
-    "rbxassetid://148840371",
-    "rbxassetid://180435571",
-    "rbxassetid://181526230"
-}
-
-SexTab:CreateInput({
-   Name = "Target Player",
-   PlaceholderText = "Player name...",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      sexTarget = Text
    end,
 })
 
@@ -1093,55 +1281,175 @@ SexTab:CreateButton({
    Callback = function()
         if not sexTarget then return end
         
-        local target = game.Players:FindFirstChild(sexTarget)
-        if not target or not target.Character then return end
+        local target = Players:FindFirstChild(sexTarget)
+        if not target or isProtectedPlayer(target) or not target.Character then return end
         
         local myChar = player.Character
-        if not myChar then return end
+        if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
         
-        -- Teleport behind target
-        if target.Character:FindFirstChild("HumanoidRootPart") and myChar:FindFirstChild("HumanoidRootPart") then
-            myChar.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
+        -- Position behind target
+        if target.Character:FindFirstChild("HumanoidRootPart") then
+            local targetHRP = target.Character.HumanoidRootPart
+            local behindPos = targetHRP.CFrame * CFrame.new(0, 0, 2)
             
-            -- Play animation
-            local humanoid = myChar:FindFirstChild("Humanoid")
-            if humanoid then
-                local animator = humanoid:FindFirstChildOfClass("Animator")
-                if animator then
-                    for _, animId in pairs(sexAnims) do
-                        local anim = Instance.new("Animation")
-                        anim.AnimationId = animId
-                        local track = animator:LoadAnimation(anim)
-                        track:Play()
-                        wait(0.5)
+            myChar.HumanoidRootPart.CFrame = behindPos
+            
+            -- Sit target on "chair"
+            local seat = Instance.new("Seat")
+            seat.Size = Vector3.new(2, 0.5, 2)
+            seat.Position = targetHRP.Position
+            seat.Anchored = true
+            seat.Transparency = 1
+            seat.Parent = Workspace
+            
+            task.wait(0.1)
+            
+            if target.Character:FindFirstChild("Humanoid") then
+                target.Character.Humanoid.Sit = true
+            end
+            
+            task.wait(0.5)
+            
+            -- Freeze target and animate
+            if target.Character:FindFirstChild("Humanoid") then
+                target.Character.Humanoid.WalkSpeed = 0
+                target.Character.Humanoid.JumpPower = 0
+                
+                -- Animate target
+                spawn(function()
+                    for i = 1, 50 do
+                        if target.Character and target.Character:FindFirstChild("Head") and target.Character:FindFirstChild("HumanoidRootPart") then
+                            -- Head bobbing
+                            target.Character.Head.CFrame = target.Character.Head.CFrame * CFrame.Angles(math.rad(math.sin(i * 0.5) * 20), 0, 0)
+                            
+                            -- Leg spread
+                            local leftLeg = target.Character:FindFirstChild("Left Leg") or target.Character:FindFirstChild("LeftUpperLeg")
+                            local rightLeg = target.Character:FindFirstChild("Right Leg") or target.Character:FindFirstChild("RightUpperLeg")
+                            
+                            if leftLeg then
+                                leftLeg.CFrame = leftLeg.CFrame * CFrame.Angles(0, 0, math.rad(10))
+                            end
+                            if rightLeg then
+                                rightLeg.CFrame = rightLeg.CFrame * CFrame.Angles(0, 0, math.rad(-10))
+                            end
+                        end
+                        wait(0.1)
                     end
-                end
+                    
+                    -- Restore
+                    if target.Character:FindFirstChild("Humanoid") then
+                        target.Character.Humanoid.WalkSpeed = 16
+                        target.Character.Humanoid.JumpPower = 50
+                    end
+                    
+                    seat:Destroy()
+                end)
+                
+                -- Animate my character
+                spawn(function()
+                    for i = 1, 50 do
+                        if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                            myChar.HumanoidRootPart.CFrame = myChar.HumanoidRootPart.CFrame * CFrame.new(0, math.sin(i * 0.3) * 0.1, 0)
+                        end
+                        wait(0.1)
+                    end
+                end)
             end
         end
    end,
 })
 
 -- TELEPORT
-TeleportTab:CreateInput({
-   Name = "Teleport to Player",
-   PlaceholderText = "Player name...",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      if Text == "" then return end
-      
-      local target = game.Players:FindFirstChild(Text)
-      if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-          local myChar = player.Character
-          if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-              myChar.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame
+TeleportTab:CreateDropdown({
+   Name = "Select Player",
+   Options = (function()
+       local names = {}
+       for _, plr in pairs(Players:GetPlayers()) do
+           if plr ~= player and not isProtectedPlayer(plr) then
+               table.insert(names, plr.Name)
+           end
+       end
+       return names
+   end)(),
+   CurrentOption = "None",
+   Callback = function(Value)
+      if Value ~= "None" then
+          local target = Players:FindFirstChild(Value)
+          if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+              local myChar = player.Character
+              if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                  myChar.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame
+              end
           end
       end
    end,
 })
 
--- SPAWN OBJECTS
+-- MISC TAB
+MiscTab:CreateToggle({
+   Name = "Anti AFK",
+   CurrentValue = false,
+   Callback = function(Value)
+        antiAFKEnabled = Value
+        
+        if Value then
+            local VirtualUser = game:GetService("VirtualUser")
+            player.Idled:Connect(function()
+                if antiAFKEnabled then
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton2(Vector2.new())
+                end
+            end)
+        end
+   end,
+})
+
+MiscTab:CreateToggle({
+   Name = "Click TP",
+   CurrentValue = false,
+   Callback = function(Value)
+        clickTPEnabled = Value
+        
+        if Value then
+            local mouse = player:GetMouse()
+            mouse.Button1Down:Connect(function()
+                if clickTPEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    player.Character.HumanoidRootPart.CFrame = CFrame.new(mouse.Hit.Position)
+                end
+            end)
+        end
+   end,
+})
+
+MiscTab:CreateButton({
+   Name = "Rejoin Server",
+   Callback = function()
+        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+   end,
+})
+
+MiscTab:CreateButton({
+   Name = "Server Hop",
+   Callback = function()
+        local servers = {}
+        local req = game:HttpGetAsync("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+        local body = game:GetService("HttpService"):JSONDecode(req)
+        
+        for _, server in pairs(body.data) do
+            if server.id ~= game.JobId then
+                table.insert(servers, server.id)
+            end
+        end
+        
+        if #servers > 0 then
+            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], player)
+        end
+   end,
+})
+
+-- SPAWN TAB
 SpawnTab:CreateButton({
-   Name = "Spawn Part (Visible to All)",
+   Name = "Spawn Part",
    Callback = function()
         local part = Instance.new("Part")
         part.Size = Vector3.new(10, 1, 10)
@@ -1155,7 +1463,7 @@ SpawnTab:CreateButton({
 })
 
 SpawnTab:CreateButton({
-   Name = "Clear Spawned Objects",
+   Name = "Clear Objects",
    Callback = function()
         for _, obj in pairs(spawnedObjects) do
             obj:Destroy()
@@ -1166,64 +1474,61 @@ SpawnTab:CreateButton({
 
 -- SKIN CHANGER
 SkinTab:CreateInput({
-   Name = "Character ID",
-   PlaceholderText = "Enter character ID...",
+   Name = "User ID",
+   PlaceholderText = "User ID...",
    RemoveTextAfterFocusLost = false,
    Callback = function(Text)
-      if Text == "" then return end
-      
-      local char = player.Character
-      if char then
-          for _, part in pairs(char:GetDescendants()) do
-              if part:IsA("Shirt") or part:IsA("Pants") or part:IsA("ShirtGraphic") then
-                  part:Destroy()
+      if Text ~= "" then
+          local char = player.Character
+          if char then
+              for _, part in pairs(char:GetDescendants()) do
+                  if part:IsA("Shirt") or part:IsA("Pants") or part:IsA("ShirtGraphic") then
+                      part:Destroy()
+                  end
               end
+              
+              Players:GetCharacterAppearanceAsync(tonumber(Text))
           end
-          
-          game.Players:GetCharacterAppearanceAsync(tonumber(Text))
       end
    end,
 })
 
--- FREECAM (IMPROVED)
+-- VISUALS
+VisualsTab:CreateButton({Name = "Day", Callback = function() Lighting.ClockTime = 14 end})
+VisualsTab:CreateButton({Name = "Night", Callback = function() Lighting.ClockTime = 0 end})
+VisualsTab:CreateToggle({Name = "Fullbright", CurrentValue = false, Callback = function(Value) Lighting.Brightness = Value and 2 or 1; Lighting.FogEnd = Value and 100000 or 10000 end})
+VisualsTab:CreateButton({Name = "Remove Fog", Callback = function() Lighting.FogEnd = 100000 end})
+
+-- FREECAM
 FreecamTab:CreateToggle({
-   Name = "Freecam (Shoot While Active)",
+   Name = "Freecam",
    CurrentValue = false,
    Callback = function(Value)
         freecamEnabled = Value
         
+        if freecamConnection then
+            freecamConnection:Disconnect()
+            freecamConnection = nil
+        end
+        
         if Value then
             local cam = Workspace.CurrentCamera
             freecamCamera = cam.CFrame
-            
             cam.CameraType = Enum.CameraType.Scriptable
             
             freecamConnection = RunService.RenderStepped:Connect(function()
                 if not freecamEnabled then
                     cam.CameraType = Enum.CameraType.Custom
-                    if freecamConnection then freecamConnection:Disconnect() end
                     return
                 end
                 
                 local moveDir = Vector3.new(0, 0, 0)
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                    moveDir = moveDir + freecamCamera.LookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                    moveDir = moveDir - freecamCamera.LookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                    moveDir = moveDir - freecamCamera.RightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                    moveDir = moveDir + freecamCamera.RightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                    moveDir = moveDir + Vector3.new(0, 1, 0)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-                    moveDir = moveDir - Vector3.new(0, 1, 0)
-                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + freecamCamera.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - freecamCamera.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - freecamCamera.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + freecamCamera.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0, 1, 0) end
                 
                 freecamCamera = freecamCamera + (moveDir * freecamSpeed)
                 cam.CFrame = freecamCamera
@@ -1234,212 +1539,47 @@ FreecamTab:CreateToggle({
    end,
 })
 
-FreecamTab:CreateSlider({
-   Name = "Speed",
-   Range = {0.1, 5},
-   Increment = 0.1,
-   CurrentValue = 1,
-   Callback = function(Value)
-      freecamSpeed = Value
-   end,
-})
+FreecamTab:CreateSlider({Name = "Speed", Range = {0.1, 5}, Increment = 0.1, CurrentValue = 1, Callback = function(Value) freecamSpeed = Value end})
 
--- MACRO (WITH SAVE)
-MacroTab:CreateToggle({
-   Name = "Record",
-   CurrentValue = false,
-   Callback = function(Value)
-        macroRecording = Value
-        
-        if Value then
-            recordedMacro = {}
-            macroStartTime = tick()
-        end
-   end,
-})
+-- MACRO
+local currentMacroName = ""
 
-MacroTab:CreateToggle({
-   Name = "Play",
-   CurrentValue = false,
-   Callback = function(Value)
-        macroPlaying = Value
-        
-        if Value and #recordedMacro > 0 then
-            spawn(function()
-                while macroPlaying do
-                    for _, action in pairs(recordedMacro) do
-                        -- Play macro
-                        wait(0.05)
-                    end
-                end
-            end)
-        end
-   end,
-})
-
-MacroTab:CreateInput({
-   Name = "Save Macro",
-   PlaceholderText = "Macro name...",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      if Text ~= "" and #recordedMacro > 0 then
-          _G.SavedMacros[Text] = recordedMacro
-          Rayfield:Notify({
-             Title = "Macro Saved",
-             Content = Text,
-             Duration = 2,
-             Image = 77069254742459,
-          })
-      end
-   end,
-})
-
--- VISUALS
-VisualsTab:CreateButton({
-   Name = "Day",
-   Callback = function()
-        Lighting.ClockTime = 14
-   end,
-})
-
-VisualsTab:CreateButton({
-   Name = "Night",
-   Callback = function()
-        Lighting.ClockTime = 0
-   end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "Fullbright",
-   CurrentValue = false,
-   Callback = function(Value)
-        if Value then
-            Lighting.Brightness = 2
-            Lighting.FogEnd = 100000
-        else
-            Lighting.Brightness = 1
-        end
-   end,
-})
+MacroTab:CreateToggle({Name = "Record", CurrentValue = false, Callback = function(Value) macroRecording = Value; if Value then recordedMacro = {}; macroStartTime = tick() end end})
+MacroTab:CreateToggle({Name = "Play", CurrentValue = false, Callback = function(Value) macroPlaying = Value end})
+MacroTab:CreateInput({Name = "Save As", PlaceholderText = "Name...", RemoveTextAfterFocusLost = false, Callback = function(Text) if Text ~= "" then _G.SavedMacros[Text] = recordedMacro end end})
 
 -- EXECUTOR
 local codeInput = ""
-
-ExecutorTab:CreateInput({
-   Name = "Code",
-   PlaceholderText = "loadstring...",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      codeInput = Text
-   end,
-})
-
-ExecutorTab:CreateButton({
-   Name = "Execute",
-   Callback = function()
-        loadstring(codeInput)()
-   end,
-})
+ExecutorTab:CreateInput({Name = "Code", PlaceholderText = "loadstring...", RemoveTextAfterFocusLost = false, Callback = function(Text) codeInput = Text end})
+ExecutorTab:CreateButton({Name = "Execute", Callback = function() loadstring(codeInput)() end})
 
 -- SCRIPTS
 local scriptName = ""
 local scriptCode = ""
-
-ScriptsTab:CreateInput({
-   Name = "Script Name",
-   PlaceholderText = "Name...",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      scriptName = Text
-   end,
-})
-
-ScriptsTab:CreateInput({
-   Name = "Script Code",
-   PlaceholderText = "Code...",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      scriptCode = Text
-   end,
-})
-
-ScriptsTab:CreateButton({
-   Name = "Save",
-   Callback = function()
-        if scriptName ~= "" and scriptCode ~= "" then
-            _G.SavedScripts[scriptName] = scriptCode
-        end
-   end,
-})
-
-ScriptsTab:CreateButton({
-   Name = "Load & Execute",
-   Callback = function()
-        if scriptName ~= "" and _G.SavedScripts[scriptName] then
-            loadstring(_G.SavedScripts[scriptName])()
-        end
-   end,
-})
+ScriptsTab:CreateInput({Name = "Name", PlaceholderText = "Script name...", RemoveTextAfterFocusLost = false, Callback = function(Text) scriptName = Text end})
+ScriptsTab:CreateInput({Name = "Code", PlaceholderText = "Code...", RemoveTextAfterFocusLost = false, Callback = function(Text) scriptCode = Text end})
+ScriptsTab:CreateButton({Name = "Save", Callback = function() if scriptName ~= "" then _G.SavedScripts[scriptName] = scriptCode end end})
+ScriptsTab:CreateButton({Name = "Execute", Callback = function() if scriptName ~= "" and _G.SavedScripts[scriptName] then loadstring(_G.SavedScripts[scriptName])() end end})
 
 -- INFO
 InfoTab:CreateParagraph({Title = "Player", Content = player.Name})
 InfoTab:CreateParagraph({Title = "UID", Content = tostring(player.UserId)})
-InfoTab:CreateParagraph({Title = "Game", Content = tostring(game.PlaceId)})
+InfoTab:CreateParagraph({Title = "Game ID", Content = tostring(game.PlaceId)})
+InfoTab:CreateParagraph({Title = "Players", Content = tostring(#Players:GetPlayers())})
 
 -- SETTINGS
-SettingsTab:CreateToggle({
-   Name = "🛡️ Anti-Ban",
-   CurrentValue = false,
-   Callback = function(Value)
-        if Value then
-            enableAntiBan()
-        else
-            antiBanEnabled = false
-        end
-   end,
-})
-
-SettingsTab:CreateToggle({
-   Name = "🛡️ Advanced Bypass",
-   CurrentValue = false,
-   Callback = function(Value)
-        if Value then
-            enableAdvancedBypass()
-        else
-            bypassEnabled = false
-        end
-   end,
-})
-
-SettingsTab:CreateToggle({
-   Name = "Hide Identity",
-   CurrentValue = false,
-   Callback = function(Value)
-        toggleIdentity(Value)
-   end,
-})
-
-SettingsTab:CreateButton({
-   Name = "🚨 PANIC",
-   Callback = function()
-        activatePanic()
-   end,
-})
-
-SettingsTab:CreateKeybind({
-   Name = "Panic Key",
-   CurrentKeybind = "P",
-   HoldToInteract = false,
-   Callback = function()
-        activatePanic()
-   end,
-})
+SettingsTab:CreateToggle({Name = "🛡️ Anti-Ban", CurrentValue = false, Callback = function(Value) if Value then enableAntiBan() else antiBanEnabled = false end end})
+SettingsTab:CreateToggle({Name = "🛡️ Bypass", CurrentValue = false, Callback = function(Value) if Value then enableAdvancedBypass() else bypassEnabled = false end end})
+SettingsTab:CreateToggle({Name = "Hide Identity", CurrentValue = false, Callback = function(Value) toggleIdentity(Value) end})
+SettingsTab:CreateButton({Name = "🚨 PANIC", Callback = function() activatePanic() end})
+SettingsTab:CreateKeybind({Name = "Panic Key", CurrentKeybind = "P", HoldToInteract = false, Callback = function() activatePanic() end})
+SettingsTab:CreateButton({Name = "Destroy GUI", Callback = function() Rayfield:Destroy() end})
 
 Rayfield:LoadConfiguration()
 
 Rayfield:Notify({
    Title = "lua.gg Loaded",
-   Content = "All systems online!",
+   Content = "Ready to dominate!",
    Duration = 3,
    Image = 77069254742459,
 })
